@@ -30,14 +30,14 @@ A web-based point-of-sale system for an imaginary bubble tea shop. It combines a
 
 ### 1. Database
 
-Create `backend/.env` with your real credentials (never commit this file):
+Copy the template and fill in **only** on your machine (never commit `backend/.env`):
 
-```env
-DB_HOST=your-host
-DB_USER=your-user
-DB_NAME=your-database
-DB_PASSWORD=your-password
+```bash
+cd backend
+cp .env.example .env
 ```
+
+Edit `backend/.env` with your team’s PostgreSQL host, user, database name, and password. The app **requires** these variables; there are no database defaults in source code.
 
 Apply schema and seed (from the `backend` folder):
 
@@ -53,7 +53,7 @@ cd backend
 npm install
 ```
 
-Add translation, chat, and any overrides to `backend/.env`:
+Add translation and chat keys to the same `backend/.env` (see `backend/.env.example`):
 
 ```env
 GOOGLE_TRANSLATE_API_KEY=your-key
@@ -101,8 +101,8 @@ In the [Google Cloud Console](https://console.cloud.google.com/), add **Authoriz
 | Where | Variable | Purpose |
 |-------|----------|---------|
 | Frontend | `VITE_API_URL` | Backend origin (no `/api` suffix). Defaults to `http://localhost:3000`. |
-| Frontend | `VITE_GOOGLE_CLIENT_ID` | Google OAuth client ID for the manager view. |
-| Backend | `DB_HOST`, `DB_USER`, `DB_NAME`, `DB_PASSWORD` | PostgreSQL connection (defaults in code are placeholders—use your team DB). |
+| Frontend | `VITE_GOOGLE_CLIENT_ID` | Google OAuth **Web client ID** (intentionally public in the browser; not a secret). |
+| Backend | `DB_HOST`, `DB_USER`, `DB_NAME`, `DB_PASSWORD` | **Required.** PostgreSQL connection — set only in `backend/.env`. |
 | Backend | `GOOGLE_TRANSLATE_API_KEY` | Proxies translation requests for the customer kiosk. |
 | Backend | `GEMINI_API_KEY` | Menu chat assistant (`POST /api/chat`). |
 | Backend | `PORT` | HTTP port (Render sets this in production). |
@@ -146,6 +146,16 @@ Point `VITE_API_URL` at your deployed API before building. Serve the `frontend/d
 backend/          Express app, `/api` routes, DB pool config, schema & seeds
 frontend/         Vite + React app (views per role, shared API client)
 ```
+
+## Security and public repositories
+
+This project is safe to open-source **only if** secrets stay out of git:
+
+- **Never commit** `backend/.env`, `frontend/.env`, or `frontend/.env.local`. Use `backend/.env.example` and `frontend/.env.example` as templates only.
+- **Database passwords, Translation keys, and Gemini keys** must exist only in environment variables on your machine and on your host (e.g. Render). They must not appear in code, README, or issues.
+- **Google OAuth Web client ID** (`VITE_GOOGLE_CLIENT_ID`) is expected to ship in the frontend bundle; restrict abuse in [Google Cloud Console](https://console.cloud.google.com/) using **HTTP referrer** / origin restrictions on the OAuth client.
+- **API keys on the server** are loaded from `process.env` only; keep them on the backend. Do not prefix secret keys with `VITE_` (Vite exposes those to the browser).
+- If anything was ever committed by mistake, **rotate** the database password and API keys, remove the leak from history (e.g. `git filter-repo` or BFG), and treat the old credentials as compromised.
 
 ## Team & course
 
