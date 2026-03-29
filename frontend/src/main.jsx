@@ -4,12 +4,21 @@ import { GoogleOAuthProvider } from '@react-oauth/google';
 import './index.css';
 import App from './App.jsx';
 
-const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ?? '';
 
-createRoot(document.getElementById('root')).render(
+const rootEl = document.getElementById('root');
+if (!rootEl) {
+  throw new Error('Missing root element #root');
+}
+
+createRoot(rootEl).render(
   <StrictMode>
-    <GoogleOAuthProvider clientId={clientId}>
+    {googleClientId ? (
+      <GoogleOAuthProvider clientId={googleClientId}>
+        <App />
+      </GoogleOAuthProvider>
+    ) : (
       <App />
-    </GoogleOAuthProvider>
+    )}
   </StrictMode>,
-)
+);

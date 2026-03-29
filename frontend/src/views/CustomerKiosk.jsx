@@ -1,10 +1,39 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
-import api from '../api';
+import api, { getApiErrorMessage } from '../api';
 
 const KIOSK_CASHIER_ID = 3;
 
+function DrinkPlaceholder() {
+  return (
+    <svg className="h-16 w-16 text-stone-300" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <path
+        d="M18 14h28l-2 36a4 4 0 01-4 3.8H24a4 4 0 01-4-3.8L18 14z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M22 22h20M22 30h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="32" cy="46" r="3" fill="currentColor" opacity="0.35" />
+    </svg>
+  );
+}
+
+function ChatGlyph() {
+  return (
+    <svg className="h-7 w-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+      />
+    </svg>
+  );
+}
+
 export default function CustomerKiosk() {
   const [menuItems, setMenuItems] = useState([]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [menuError, setMenuError] = useState(null);
   const [cart, setCart] = useState([]);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [language, setLanguage] = useState('en');
@@ -27,11 +56,28 @@ export default function CustomerKiosk() {
     stepReview: 'Review',
     stepPay: 'Pay',
     emptyCart: 'Tap a drink to start your order',
-    assistantHint: 'Ask about flavors, ice, or toppings',
+    assistantHint: 'Ask about ice level, sweetness, or toppings.',
   });
 
   useEffect(() => {
-    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    let cancelled = false;
+    api
+      .get('/menu')
+      .then((res) => {
+        if (!cancelled) {
+          setMenuItems(res.data);
+          setMenuError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setMenuError(getApiErrorMessage(err, 'Could not load menu.'));
+      })
+      .finally(() => {
+        if (!cancelled) setMenuLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -85,7 +131,7 @@ export default function CustomerKiosk() {
           menuItems.map(async (item) => ({
             ...item,
             name: await translateText(item.name, 'es'),
-            description: await translateText(item.description, 'es'),
+            description: await translateText(item.description ?? '', 'es'),
           }))
         );
         setMenuItems(translatedMenu);
@@ -93,8 +139,12 @@ export default function CustomerKiosk() {
         console.error('Translation failed', err);
       }
     } else {
-      const res = await api.get('/menu');
-      setMenuItems(res.data);
+      try {
+        const res = await api.get('/menu');
+        setMenuItems(res.data);
+      } catch (err) {
+        console.error(err);
+      }
       setCopy({
         welcome: 'Welcome to Reveille Boba',
         translateBtn: 'Translate to Spanish',
@@ -106,7 +156,7 @@ export default function CustomerKiosk() {
         stepReview: 'Review',
         stepPay: 'Pay',
         emptyCart: 'Tap a drink to start your order',
-        assistantHint: 'Ask about flavors, ice, or toppings',
+        assistantHint: 'Ask about ice level, sweetness, or toppings.',
       });
     }
 
@@ -124,13 +174,16 @@ export default function CustomerKiosk() {
     setIsChatting(true);
 
     try {
-      const menuContext = menuItems.map((i) => `${i.name}: ${i.description} ($${i.default_price})`).join('; ');
+      const menuContext = menuItems
+        .map((i) => `${i.name}: ${i.description ?? ''} ($${i.default_price})`)
+        .join('; ');
       const res = await api.post('/chat', { message: userMsg, menuContext, language });
       setChatLog((prev) => [...prev, { sender: 'ai', text: res.data.reply }]);
     } catch {
       setChatLog((prev) => [...prev, { sender: 'ai', text: "Sorry, I'm having trouble connecting." }]);
+    } finally {
+      setIsChatting(false);
     }
-    setIsChatting(false);
   };
 
   const addToCart = (item) => {
@@ -181,30 +234,27 @@ export default function CustomerKiosk() {
       alert(`${res.data.message} (Order #${res.data.id})`);
       setCart([]);
     } catch (err) {
-      alert(language === 'es' ? 'No se pudo completar el pago.' : 'Checkout failed. Please try again.');
+      const fallback = language === 'es' ? 'No se pudo completar el pago.' : 'Checkout failed. Please try again.';
+      alert(getApiErrorMessage(err, fallback));
       console.error(err);
+    } finally {
+      setCheckoutLoading(false);
     }
-    setCheckoutLoading(false);
   };
 
   const cartOpen = cart.length > 0;
   const mainPad = cartOpen ? 'pb-[340px] sm:pb-[300px]' : 'pb-36';
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-violet-50 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)]">
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-violet-200/40 to-transparent"
-        aria-hidden="true"
-      />
-
-      <header className="relative z-20 border-b border-violet-100/80 bg-white/75 px-5 py-6 backdrop-blur-md sm:px-10">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+    <div className="relative min-h-screen overflow-x-hidden bg-[var(--color-cream)] font-[family-name:var(--font-ui)] grain">
+      <header className="relative z-20 border-b border-stone-200/90 bg-white/95 px-5 py-6 backdrop-blur-sm sm:px-10">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Self-service</p>
-            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-violet-950 sm:text-4xl">
+            <p className="label-caps">Order here</p>
+            <h1 className="mt-2 font-display text-3xl font-semibold tracking-tight text-stone-900 sm:text-[2.1rem]">
               {copy.welcome}
             </h1>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="mt-5 flex flex-wrap gap-2">
               {[
                 { n: 1, label: copy.stepBrowse, active: !cartOpen },
                 { n: 2, label: copy.stepReview, active: cartOpen && cartTotal > 0 },
@@ -212,11 +262,13 @@ export default function CustomerKiosk() {
               ].map((s) => (
                 <span
                   key={s.n}
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
-                    s.active ? 'bg-violet-600 text-white shadow-md shadow-violet-600/25' : 'bg-violet-100/80 text-violet-800'
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium ${
+                    s.active ? 'bg-stone-900 text-white' : 'bg-stone-100 text-stone-600'
                   }`}
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">{s.n}</span>
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full border border-current/20 text-[10px]">
+                    {s.n}
+                  </span>
                   {s.label}
                 </span>
               ))}
@@ -226,7 +278,7 @@ export default function CustomerKiosk() {
             type="button"
             onClick={handleTranslateToggle}
             disabled={isTranslating}
-            className="self-start rounded-2xl border-2 border-violet-200 bg-white px-6 py-3 text-base font-semibold text-violet-900 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-50 lg:self-center"
+            className="self-start rounded-xl border border-stone-300 bg-white px-5 py-2.5 text-sm font-medium text-stone-800 shadow-sm transition hover:border-stone-400 hover:bg-stone-50 disabled:opacity-50 lg:self-end"
           >
             {isTranslating ? '…' : copy.translateBtn}
           </button>
@@ -234,38 +286,52 @@ export default function CustomerKiosk() {
       </header>
 
       <main className={`relative z-10 mx-auto max-w-6xl px-5 py-10 sm:px-10 ${mainPad}`}>
+        {menuLoading && (
+          <p className="mb-8 text-center text-stone-600" role="status">
+            Loading menu…
+          </p>
+        )}
+        {menuError && !menuLoading && (
+          <div
+            className="mb-8 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-red-900"
+            role="alert"
+          >
+            {menuError}
+          </div>
+        )}
         <div className="space-y-14">
+          {!menuLoading && !menuError && menuItems.length === 0 && (
+            <p className="text-center text-stone-500">No menu items available.</p>
+          )}
           {[...byCategory.entries()].map(([category, items]) => (
             <section key={category}>
-              <h2 className="mb-6 font-display text-2xl font-bold text-violet-950">{category}</h2>
+              <h2 className="mb-6 font-display text-2xl font-semibold text-stone-900">{category}</h2>
               <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
                 {items.map((item) => (
                   <article
                     key={item.id}
-                    className="flex flex-col overflow-hidden rounded-3xl border border-violet-100/90 bg-white shadow-[0_8px_30px_-12px_rgba(91,33,182,0.2)] ring-1 ring-violet-100/50"
+                    className="surface-card flex flex-col overflow-hidden rounded-xl ring-0 transition hover:shadow-md"
                   >
-                    <div className="relative aspect-[4/3] bg-gradient-to-br from-violet-100 to-fuchsia-50">
+                    <div className="relative aspect-[4/3] bg-stone-100">
                       {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                        />
+                        <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
                       ) : (
-                        <div className="flex h-full items-center justify-center text-6xl opacity-30" aria-hidden="true">
-                          🧋
+                        <div className="flex h-full items-center justify-center" aria-hidden="true">
+                          <DrinkPlaceholder />
                         </div>
                       )}
-                      <span className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                      <span className="absolute left-3 top-3 rounded-md bg-stone-900/85 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-white">
                         {category}
                       </span>
                     </div>
-                    <div className="flex flex-1 flex-col p-6">
-                      <h3 className="font-display text-xl font-bold leading-snug text-violet-950">{item.name}</h3>
-                      <p className="mt-2 flex-1 text-sm leading-relaxed text-stone-600 line-clamp-3">{item.description}</p>
-                      <div className="mt-4 flex items-end justify-between gap-4 border-t border-violet-100 pt-4">
+                    <div className="flex flex-1 flex-col p-5">
+                      <h3 className="font-display text-lg font-semibold leading-snug text-stone-900">{item.name}</h3>
+                      <p className="mt-2 flex-1 text-sm leading-relaxed text-stone-600 line-clamp-3">
+                        {item.description ?? ''}
+                      </p>
+                      <div className="mt-4 flex items-end justify-between gap-4 border-t border-stone-100 pt-4">
                         <p
-                          className="font-display text-2xl font-bold tabular-nums text-violet-900"
+                          className="font-display text-2xl font-semibold tabular-nums text-stone-900"
                           aria-label={`${parseFloat(item.default_price).toFixed(2)} dollars`}
                         >
                           ${parseFloat(item.default_price).toFixed(2)}
@@ -273,7 +339,7 @@ export default function CustomerKiosk() {
                         <button
                           type="button"
                           onClick={() => addToCart(item)}
-                          className="rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 py-3 text-base font-bold text-white shadow-lg shadow-violet-600/25 transition hover:from-violet-500 hover:to-fuchsia-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                          className="rounded-lg bg-stone-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2"
                           aria-label={`${copy.addToOrder}: ${item.name}`}
                         >
                           {copy.addToOrder}
@@ -290,12 +356,12 @@ export default function CustomerKiosk() {
 
       {cartOpen && (
         <div
-          className="fixed bottom-[120px] left-0 right-0 z-30 max-h-[200px] overflow-y-auto border-t border-violet-200/80 bg-white/90 px-5 py-4 shadow-[0_-12px_40px_-16px_rgba(91,33,182,0.25)] backdrop-blur-md sm:bottom-[112px]"
+          className="fixed bottom-[120px] left-0 right-0 z-30 max-h-[200px] overflow-y-auto border-t border-stone-200 bg-white/95 px-5 py-4 shadow-[0_-8px_30px_-12px_rgba(0,0,0,0.12)] backdrop-blur-sm sm:bottom-[112px]"
           aria-label={copy.yourOrder}
         >
           <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 pb-2">
-            <p className="font-display text-lg font-bold text-violet-950">{copy.yourOrder}</p>
-            <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-bold text-violet-800">
+            <p className="font-display text-lg font-semibold text-stone-900">{copy.yourOrder}</p>
+            <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-semibold text-stone-700">
               {itemCount} {itemCount === 1 ? 'item' : 'items'}
             </span>
           </div>
@@ -303,29 +369,29 @@ export default function CustomerKiosk() {
             {cart.map((line) => (
               <li
                 key={line.unique_id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-violet-50/50 px-4 py-3"
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50/80 px-4 py-3"
               >
-                <span className="min-w-0 flex-1 font-semibold text-stone-800">
+                <span className="min-w-0 flex-1 font-medium text-stone-800">
                   {line.name}
                   <span className="ml-2 text-sm font-normal tabular-nums text-stone-500">
                     ${parseFloat(line.default_price).toFixed(2)} × {line.quantity}
                   </span>
                 </span>
                 <div className="flex items-center gap-2">
-                  <div className="flex items-center rounded-xl bg-white p-1 shadow-sm ring-1 ring-violet-100">
+                  <div className="flex items-center rounded-lg border border-stone-200 bg-white p-0.5">
                     <button
                       type="button"
                       onClick={() => decrementLine(line.unique_id)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
+                      className="flex h-9 w-9 items-center justify-center rounded-md text-lg font-semibold text-stone-600 hover:bg-stone-100"
                       aria-label={language === 'es' ? 'Menos' : 'Decrease'}
                     >
                       −
                     </button>
-                    <span className="min-w-[2rem] text-center font-bold tabular-nums">{line.quantity}</span>
+                    <span className="min-w-[2rem] text-center text-sm font-semibold tabular-nums">{line.quantity}</span>
                     <button
                       type="button"
                       onClick={() => addToCart(line)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
+                      className="flex h-9 w-9 items-center justify-center rounded-md text-lg font-semibold text-stone-600 hover:bg-stone-100"
                       aria-label={language === 'es' ? 'Más' : 'Increase'}
                     >
                       +
@@ -334,11 +400,16 @@ export default function CustomerKiosk() {
                   <button
                     type="button"
                     onClick={() => removeLine(line.unique_id)}
-                    className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                    className="rounded-md p-2 text-stone-400 hover:bg-red-50 hover:text-red-700"
                     aria-label={language === 'es' ? 'Eliminar' : 'Remove'}
                   >
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
                     </svg>
                   </button>
                 </div>
@@ -349,21 +420,23 @@ export default function CustomerKiosk() {
       )}
 
       {!cartOpen && (
-        <p className="pointer-events-none fixed bottom-32 left-0 right-0 z-10 text-center text-sm text-violet-400/90">
+        <p className="pointer-events-none fixed bottom-32 left-0 right-0 z-10 text-center text-sm text-stone-500">
           {copy.emptyCart}
         </p>
       )}
 
       <div
-        className={`fixed bottom-28 right-6 z-40 flex flex-col items-end gap-3 sm:bottom-32 sm:right-10 ${chatOpen ? 'pointer-events-none opacity-0' : ''}`}
+        className={`fixed bottom-28 right-6 z-40 flex flex-col items-end gap-3 sm:bottom-32 sm:right-10 ${
+          chatOpen ? 'pointer-events-none opacity-0' : ''
+        }`}
       >
         <button
           type="button"
           onClick={() => setChatOpen(true)}
-          className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-2xl text-white shadow-xl shadow-violet-600/40 transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2"
+          className="flex h-14 w-14 items-center justify-center rounded-2xl bg-stone-900 text-white shadow-lg shadow-stone-900/20 transition hover:bg-stone-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2"
           aria-label="Open menu assistant"
         >
-          ✨
+          <ChatGlyph />
         </button>
       </div>
 
@@ -372,51 +445,50 @@ export default function CustomerKiosk() {
           chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
         }`}
       >
-        <div className="flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-2xl shadow-violet-900/20">
-          <div className="flex items-center justify-between bg-gradient-to-r from-violet-800 to-fuchsia-700 px-5 py-4 text-white">
-            <span className="font-display text-lg font-bold">Boba assistant</span>
+        <div className="surface-card flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-2xl p-0 shadow-xl">
+          <div className="flex items-center justify-between border-b border-stone-200 bg-stone-900 px-4 py-3.5 text-white">
+            <span className="font-display text-base font-semibold">Menu help</span>
             <button
               type="button"
               onClick={() => setChatOpen(false)}
               className="rounded-lg p-2 text-white/80 hover:bg-white/10 hover:text-white"
               aria-label="Close assistant"
             >
-              ✕
+              <span className="sr-only">Close</span>
+              <span aria-hidden="true">×</span>
             </button>
           </div>
-          <div className="max-h-72 overflow-y-auto space-y-3 bg-violet-50/50 p-4">
+          <div className="max-h-72 space-y-3 overflow-y-auto bg-stone-50 p-4">
             {chatLog.length === 0 && (
-              <p className="text-center text-sm text-violet-600/80">{copy.assistantHint}</p>
+              <p className="text-center text-sm leading-relaxed text-stone-600">{copy.assistantHint}</p>
             )}
             {chatLog.map((msg, i) => (
               <div
                 key={i}
-                className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                className={`max-w-[92%] rounded-xl px-3.5 py-2.5 text-sm leading-relaxed ${
                   msg.sender === 'user'
-                    ? 'ml-auto bg-violet-600 text-white'
-                    : 'border border-violet-100 bg-white text-stone-800'
+                    ? 'ml-auto bg-stone-800 text-white'
+                    : 'border border-stone-200 bg-white text-stone-800'
                 }`}
               >
-                <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
+                <span className="whitespace-pre-wrap break-words">{msg.text}</span>
               </div>
             ))}
-            {isChatting && (
-              <p className="text-sm italic text-violet-500">…</p>
-            )}
+            {isChatting && <p className="text-sm text-stone-500">…</p>}
             <div ref={chatEndRef} />
           </div>
-          <form onSubmit={handleChatSubmit} className="flex gap-2 border-t border-violet-100 bg-white p-3">
+          <form onSubmit={handleChatSubmit} className="flex gap-2 border-t border-stone-200 bg-white p-3">
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
-              className="min-h-[48px] flex-1 rounded-2xl border border-violet-100 bg-stone-50 px-4 text-base outline-none focus:ring-2 focus:ring-violet-400"
+              className="min-h-[48px] flex-1 rounded-xl border border-stone-200 bg-stone-50 px-4 text-base text-stone-900 outline-none placeholder:text-stone-400 focus:ring-2 focus:ring-stone-400"
               placeholder={language === 'es' ? 'Pregunta sobre el menú…' : 'Ask about the menu…'}
             />
             <button
               type="submit"
               disabled={isChatting}
-              className="rounded-2xl bg-violet-600 px-5 font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+              className="rounded-xl bg-stone-900 px-4 text-sm font-semibold text-white hover:bg-stone-800 disabled:opacity-50"
             >
               {language === 'es' ? 'Enviar' : 'Send'}
             </button>
@@ -424,17 +496,19 @@ export default function CustomerKiosk() {
         </div>
       </div>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-violet-200/90 bg-white/95 px-5 py-5 backdrop-blur-md sm:px-10">
+      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-stone-200 bg-white/95 px-5 py-5 backdrop-blur-md sm:px-10">
         <div className="mx-auto flex max-w-6xl flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div aria-live="polite" aria-atomic="true">
-            <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">{copy.total}</p>
-            <p className="font-display text-4xl font-bold tabular-nums text-violet-950 sm:text-5xl">${cartTotal.toFixed(2)}</p>
+            <p className="label-caps">{copy.total}</p>
+            <p className="font-display text-4xl font-semibold tabular-nums text-stone-900 sm:text-[2.75rem]">
+              ${cartTotal.toFixed(2)}
+            </p>
           </div>
           <button
             type="button"
             onClick={handleCheckout}
             disabled={cart.length === 0 || checkoutLoading}
-            className="min-h-[56px] rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-10 py-4 text-xl font-bold text-white shadow-lg shadow-violet-600/30 transition hover:from-violet-500 hover:to-fuchsia-500 disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[240px] sm:text-2xl"
+            className="min-h-[52px] rounded-xl bg-stone-900 px-10 py-3.5 text-lg font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[220px] sm:text-xl"
             aria-label={copy.checkout}
           >
             {checkoutLoading ? '…' : copy.checkout}

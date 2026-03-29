@@ -1,13 +1,32 @@
 import { useMemo, useState, useEffect } from 'react';
-import api from '../api';
+import api, { getApiErrorMessage } from '../api';
 
 export default function Cashier() {
   const [menuItems, setMenuItems] = useState([]);
+  const [menuLoading, setMenuLoading] = useState(true);
+  const [menuError, setMenuError] = useState(null);
   const [cart, setCart] = useState([]);
   const cashierId = 2;
 
   useEffect(() => {
-    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    let cancelled = false;
+    api
+      .get('/menu')
+      .then((res) => {
+        if (!cancelled) {
+          setMenuItems(res.data);
+          setMenuError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) setMenuError(getApiErrorMessage(err, 'Could not load menu.'));
+      })
+      .finally(() => {
+        if (!cancelled) setMenuLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const byCategory = useMemo(() => {
@@ -68,7 +87,7 @@ export default function Cashier() {
       alert(res.data.message + ` (Order #${res.data.id})`);
       setCart([]);
     } catch (err) {
-      alert('Checkout failed: ' + err.message);
+      alert(`Checkout failed: ${getApiErrorMessage(err, 'Please try again.')}`);
     }
   };
 
@@ -76,32 +95,32 @@ export default function Cashier() {
   const itemCount = cart.reduce((n, item) => n + item.quantity, 0);
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f0fdfa] font-[family-name:var(--font-ui)] lg:flex-row">
+    <div className="flex min-h-screen flex-col bg-stone-100 font-[family-name:var(--font-ui)] grain lg:flex-row">
       <div className="flex min-h-0 flex-1 flex-col lg:min-h-screen">
-        <header className="sticky top-0 z-20 border-b border-teal-200/80 bg-[#f0fdfa]/90 px-6 py-5 backdrop-blur-md">
+        <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/95 px-6 py-5 backdrop-blur-sm">
           <div className="mx-auto flex max-w-[1600px] flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Cashier station</p>
-              <h1 className="font-display text-2xl font-bold text-teal-950">Tap drinks · Review cart · Checkout</h1>
+              <p className="label-caps">Register</p>
+              <h1 className="font-display text-2xl font-semibold text-stone-900">Tap items · review cart · send</h1>
             </div>
-            <ol className="flex gap-4 text-sm text-teal-800/90">
+            <ol className="flex gap-4 text-sm text-stone-600">
               <li className="flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-bold text-white">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-stone-900 text-xs font-semibold text-white">
                   1
                 </span>
-                Add items
+                Add
               </li>
               <li className="flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-800">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-stone-300 text-xs font-semibold text-stone-700">
                   2
                 </span>
                 Confirm
               </li>
               <li className="flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-800">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-stone-300 text-xs font-semibold text-stone-700">
                   3
                 </span>
-                Send order
+                Send
               </li>
             </ol>
           </div>
@@ -109,24 +128,35 @@ export default function Cashier() {
 
         <div className="flex-1 overflow-y-auto px-4 py-8 pb-28 sm:px-8">
           <div className="mx-auto max-w-[1600px] space-y-10">
+            {menuLoading && (
+              <p className="text-center text-lg font-medium text-stone-600" role="status">
+                Loading menu…
+              </p>
+            )}
+            {menuError && !menuLoading && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-center text-red-900" role="alert">
+                {menuError}
+              </div>
+            )}
+            {!menuLoading && !menuError && menuItems.length === 0 && (
+              <p className="text-center text-stone-500">No menu items available.</p>
+            )}
             {[...byCategory.entries()].map(([category, items]) => (
               <section key={category}>
-                <h2 className="mb-4 font-display text-lg font-semibold text-teal-900">{category}</h2>
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
+                <h2 className="mb-4 font-display text-lg font-semibold text-stone-900">{category}</h2>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4">
                   {items.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => addToCart(item)}
-                      className="group flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-teal-100 bg-white p-5 text-center shadow-sm ring-teal-400/0 transition hover:border-teal-300 hover:shadow-md hover:ring-2 hover:ring-teal-400/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:scale-[0.98]"
+                      className="surface-card group flex min-h-[132px] flex-col items-center justify-center rounded-xl p-4 text-center transition hover:border-stone-300 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2 active:scale-[0.99]"
                     >
-                      <span className="text-lg font-bold leading-snug text-stone-800 group-hover:text-teal-900">
-                        {item.name}
-                      </span>
-                      <span className="mt-3 rounded-full bg-teal-50 px-4 py-1 text-base font-semibold tabular-nums text-teal-800">
+                      <span className="text-base font-semibold leading-snug text-stone-900">{item.name}</span>
+                      <span className="mt-3 rounded-md bg-stone-100 px-3 py-1 text-sm font-semibold tabular-nums text-stone-800">
                         ${parseFloat(item.default_price).toFixed(2)}
                       </span>
-                      <span className="mt-2 text-xs font-medium text-teal-600/80 opacity-0 transition group-hover:opacity-100">
+                      <span className="mt-2 text-[11px] font-medium text-stone-500 opacity-0 transition group-hover:opacity-100">
                         Tap again for +1
                       </span>
                     </button>
@@ -138,22 +168,22 @@ export default function Cashier() {
         </div>
       </div>
 
-      <aside className="flex max-h-[55vh] w-full shrink-0 flex-col border-t border-teal-200/90 bg-white shadow-[0_-8px_32px_-12px_rgba(15,118,110,0.2)] lg:max-h-none lg:max-w-md lg:border-l lg:border-t-0 lg:shadow-[-8px_0_32px_-12px_rgba(15,118,110,0.25)]">
-        <div className="flex items-center justify-between bg-gradient-to-r from-teal-800 to-teal-700 px-6 py-5 text-white">
+      <aside className="flex max-h-[55vh] w-full shrink-0 flex-col border-t border-stone-200 bg-white shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.08)] lg:max-h-none lg:max-w-md lg:border-l lg:border-t-0 lg:shadow-[-8px_0_24px_-12px_rgba(0,0,0,0.06)]">
+        <div className="flex items-center justify-between border-b border-stone-200 bg-stone-900 px-5 py-4 text-white">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-teal-100/90">Current order</p>
-            <p className="font-display text-xl font-bold">Cart</p>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-stone-400">Current order</p>
+            <p className="font-display text-lg font-semibold">Cart</p>
           </div>
-          <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-bold tabular-nums ring-1 ring-white/20">
+          <span className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tabular-nums text-white">
             {itemCount} {itemCount === 1 ? 'drink' : 'drinks'}
           </span>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-stone-50/80 p-4">
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-stone-50 p-4">
           {cart.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-stone-400">
-              <div className="mb-4 rounded-2xl bg-teal-50 p-6 text-teal-300">
-                <svg className="mx-auto h-14 w-14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <div className="flex flex-col items-center justify-center py-14 text-center text-stone-400">
+              <div className="mb-3 rounded-xl border border-dashed border-stone-300 p-6 text-stone-300">
+                <svg className="mx-auto h-12 w-12" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -162,37 +192,37 @@ export default function Cashier() {
                   />
                 </svg>
               </div>
-              <p className="font-medium text-stone-500">Cart is empty</p>
-              <p className="mt-1 text-sm text-stone-400">Tap menu tiles to add drinks</p>
+              <p className="font-medium text-stone-600">Empty cart</p>
+              <p className="mt-1 text-sm text-stone-500">Tap a tile to add</p>
             </div>
           )}
           {cart.map((item) => (
             <div
               key={item.unique_id}
-              className="flex items-center gap-3 rounded-xl border border-stone-100 bg-white p-4 shadow-sm"
+              className="surface-card flex items-center gap-3 rounded-xl border-stone-200 p-3.5"
             >
               <div className="min-w-0 flex-1">
-                <p className="font-semibold text-stone-800">{item.name}</p>
-                <p className="mt-0.5 text-sm tabular-nums text-teal-700">
+                <p className="font-medium text-stone-900">{item.name}</p>
+                <p className="mt-0.5 text-sm tabular-nums text-stone-600">
                   ${parseFloat(item.default_price).toFixed(2)} each
                 </p>
               </div>
-              <div className="flex items-center gap-1 rounded-xl bg-stone-100 p-1">
+              <div className="flex items-center gap-0.5 rounded-lg border border-stone-200 bg-white p-0.5">
                 <button
                   type="button"
                   onClick={() => decrementLine(item.unique_id)}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-stone-600 transition hover:bg-white hover:text-teal-800"
+                  className="flex h-9 w-9 items-center justify-center rounded-md text-lg font-semibold text-stone-600 hover:bg-stone-100"
                   aria-label="Decrease quantity"
                 >
                   −
                 </button>
-                <span className="min-w-[2rem] text-center text-base font-bold tabular-nums text-stone-900">
+                <span className="min-w-[2rem] text-center text-sm font-semibold tabular-nums text-stone-900">
                   {item.quantity}
                 </span>
                 <button
                   type="button"
                   onClick={() => addToCart(item)}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-stone-600 transition hover:bg-white hover:text-teal-800"
+                  className="flex h-9 w-9 items-center justify-center rounded-md text-lg font-semibold text-stone-600 hover:bg-stone-100"
                   aria-label="Increase quantity"
                 >
                   +
@@ -201,27 +231,32 @@ export default function Cashier() {
               <button
                 type="button"
                 onClick={() => removeLine(item.unique_id)}
-                className="rounded-lg p-2 text-stone-400 transition hover:bg-red-50 hover:text-red-600"
+                className="rounded-md p-2 text-stone-400 hover:bg-red-50 hover:text-red-700"
                 aria-label="Remove line"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                  />
                 </svg>
               </button>
             </div>
           ))}
         </div>
 
-        <div className="border-t border-stone-200 bg-white p-6">
-          <div className="mb-5 flex items-end justify-between">
-            <span className="text-sm font-medium uppercase tracking-wide text-stone-500">Total</span>
-            <span className="font-display text-4xl font-bold tabular-nums text-teal-900">${total.toFixed(2)}</span>
+        <div className="border-t border-stone-200 bg-white p-5">
+          <div className="mb-4 flex items-end justify-between">
+            <span className="label-caps">Total</span>
+            <span className="font-display text-3xl font-semibold tabular-nums text-stone-900">${total.toFixed(2)}</span>
           </div>
           <button
             type="button"
             onClick={handleCheckout}
             disabled={cart.length === 0}
-            className="w-full rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 py-4 text-lg font-bold text-white shadow-lg shadow-teal-900/20 transition hover:from-teal-500 hover:to-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+            className="w-full rounded-xl bg-stone-900 py-3.5 text-base font-semibold text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
             Complete sale
           </button>

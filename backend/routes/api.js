@@ -34,30 +34,35 @@ router.get('/employees', async (req, res) => {
     }
 });
 
-// Create an order
+// Create an order (single DB connection for transactional integrity)
 router.post('/orders', async (req, res) => {
     const { cashier_id, total_amount, items } = req.body;
+    if (
+        cashier_id == null ||
+        total_amount == null ||
+        !Array.isArray(items) ||
+        items.length === 0
+    ) {
+        return res.status(400).json({ error: 'Invalid order: cashier_id, total_amount, and non-empty items[] are required' });
+    }
     try {
-        await db.query('BEGIN');
-        
-        const orderResult = await db.query(
-            'INSERT INTO orders (cashier_id, total_amount) VALUES ($1, $2) RETURNING id',
-            [cashier_id, total_amount]
-        );
-        const orderId = orderResult.rows[0].id;
-        
-        // items should be an array of: { menu_item_id, quantity, customization, price }
-        for (let item of items) {
-            await db.query(
-                'INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time) VALUES ($1, $2, $3, $4, $5)',
-                [orderId, item.menu_item_id, item.quantity, item.customization || null, item.price]
+        const orderId = await db.withTransaction(async (client) => {
+            const orderResult = await client.query(
+                'INSERT INTO orders (cashier_id, total_amount) VALUES ($1, $2) RETURNING id',
+                [cashier_id, total_amount]
             );
-        }
-        
-        await db.query('COMMIT');
+            const id = orderResult.rows[0].id;
+
+            for (const item of items) {
+                await client.query(
+                    'INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time) VALUES ($1, $2, $3, $4, $5)',
+                    [id, item.menu_item_id, item.quantity, item.customization || null, item.price]
+                );
+            }
+            return id;
+        });
         res.status(201).json({ id: orderId, message: 'Order created successfully' });
     } catch (err) {
-        await db.query('ROLLBACK');
         res.status(500).json({ error: err.message });
     }
 });
@@ -67,6 +72,9 @@ router.post('/translate', async (req, res) => {
     try {
         const { text, target } = req.body;
         const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY;
+        if (!apiKey) {
+            return res.status(503).json({ error: 'Translation is not configured (missing GOOGLE_TRANSLATE_API_KEY)' });
+        }
         
         // Use native fetch to proxy the request
         const response = await fetch(`https://translation.googleapis.com/language/translate/v2?key=${apiKey}`, {
@@ -120,7 +128,11 @@ router.get('/weather', async (req, res) => {
 router.post('/chat', async (req, res) => {
     try {
         const { message, menuContext, language } = req.body;
-        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const geminiKey = process.env.GEMINI_API_KEY;
+        if (!geminiKey) {
+            return res.status(503).json({ error: 'Chat assistant is not configured (missing GEMINI_API_KEY)' });
+        }
+        const ai = new GoogleGenAI({ apiKey: geminiKey });
         
         const systemPrompt = `You are an incredibly helpful, friendly, and concise bubble tea shop assistant. Keep answers short (1-3 sentences) suited for a POS kiosk. Use this menu as context: ${menuContext}. The customer's interface language is ${language || 'en'}. Answer in that language. Explain what drinks are, or recommend them. Do NOT use markdown headers, just plain text or basic bolding.`;
         

@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
-import { jwtDecode } from "jwt-decode";
-import api from '../api';
+import { jwtDecode } from 'jwt-decode';
+import api, { getApiErrorMessage } from '../api';
+
+const googleClientConfigured = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim());
 
 export default function Manager() {
   const [user, setUser] = useState(null);
@@ -11,16 +13,30 @@ export default function Manager() {
 
   useEffect(() => {
     if (!user || activeTab !== 'inventory') return;
-    setInventoryError(null);
+
+    let cancelled = false;
+
     api
       .get('/inventory')
-      .then((res) => setInventory(res.data))
-      .catch((err) => setInventoryError(err.response?.data?.error || err.message || 'Failed to load inventory'));
+      .then((res) => {
+        if (!cancelled) {
+          setInventory(res.data);
+          setInventoryError(null);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setInventoryError(getApiErrorMessage(err, 'Failed to load inventory'));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [user, activeTab]);
 
   const handleLogin = (credentialResponse) => {
     const decoded = jwtDecode(credentialResponse.credential);
-    // Verifying token claims locally for MVP
     if (decoded.email === 'reveille.bubbletea@gmail.com' || decoded.email_verified) {
       setUser(decoded);
     } else {
@@ -29,11 +45,24 @@ export default function Manager() {
   };
 
   if (!user) {
+    if (!googleClientConfigured) {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[var(--color-cream)] px-6 grain">
+          <h1 className="font-display text-3xl font-semibold text-stone-900">Manager</h1>
+          <p className="max-w-md text-center leading-relaxed text-stone-600">
+            Add your Google OAuth web client ID as{' '}
+            <code className="rounded bg-stone-200/80 px-1.5 py-0.5 font-mono text-sm text-stone-800">VITE_GOOGLE_CLIENT_ID</code>{' '}
+            in <code className="rounded bg-stone-200/80 px-1.5 py-0.5 font-mono text-sm text-stone-800">frontend/.env.local</code>, then restart Vite.
+          </p>
+        </div>
+      );
+    }
+
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-6">
-        <h1 className="text-4xl font-extrabold text-blue-900">Manager Access</h1>
-        <p className="text-gray-600 text-lg">Please authenticate with an authorized Google account.</p>
-        <div className="bg-white p-8 rounded shadow-lg border-2 border-blue-100 flex justify-center">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-[var(--color-cream)] px-6 grain">
+        <h1 className="font-display text-3xl font-semibold text-stone-900">Manager</h1>
+        <p className="text-center text-stone-600">Sign in with Google to continue.</p>
+        <div className="surface-card rounded-xl p-8">
           <GoogleLogin
             onSuccess={handleLogin}
             onError={() => {
@@ -46,88 +75,89 @@ export default function Manager() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center">
-      <header className="bg-blue-800 text-white w-full p-4 shadow-md flex justify-between items-center px-8">
-        <h1 className="text-2xl font-bold">Manager Dashboard</h1>
-        <div className="flex items-center space-x-6">
-          <div className="flex items-center space-x-2">
-            <img src={user.picture} alt="Profile" className="w-8 h-8 rounded-full" />
-            <span className="text-blue-200">Welcome, {user.name}</span>
+    <div className="min-h-screen bg-stone-100 font-[family-name:var(--font-ui)] grain">
+      <header className="border-b border-stone-200 bg-white">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-4">
+          <h1 className="font-display text-xl font-semibold text-stone-900">Back office</h1>
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="flex items-center gap-2">
+              <img src={user.picture} alt="" className="h-8 w-8 rounded-full ring-1 ring-stone-200" />
+              <span className="text-sm text-stone-700">{user.name}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUser(null)}
+              className="rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 hover:bg-stone-50"
+            >
+              Sign out
+            </button>
           </div>
-          <button onClick={() => setUser(null)} className="hover:bg-blue-700 px-4 py-2 rounded font-bold bg-blue-600 shadow-sm border border-blue-500 transition">Logout</button>
         </div>
       </header>
-      <main className="p-8 w-full max-w-7xl">
-        <div className="flex space-x-4 mb-6 border-b pb-4" role="tablist" aria-label="Manager sections">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'inventory'}
-            onClick={() => setActiveTab('inventory')}
-            className={`px-6 py-2 shadow font-bold rounded ${activeTab === 'inventory' ? 'bg-blue-600 text-white hover:bg-blue-700' : 'text-blue-600 hover:bg-blue-100 bg-white border'}`}
-          >
-            Inventory
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'menu'}
-            onClick={() => setActiveTab('menu')}
-            className={`px-6 py-2 shadow-sm font-bold rounded border ${activeTab === 'menu' ? 'bg-blue-600 text-white border-blue-600' : 'text-blue-600 hover:bg-blue-100 bg-white'}`}
-          >
-            Menu Items
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'financials'}
-            onClick={() => setActiveTab('financials')}
-            className={`px-6 py-2 shadow-sm font-bold rounded border ${activeTab === 'financials' ? 'bg-blue-600 text-white border-blue-600' : 'text-blue-600 hover:bg-blue-100 bg-white'}`}
-          >
-            Financials & Users
-          </button>
+      <main className="mx-auto max-w-7xl p-6 sm:p-8">
+        <div className="mb-6 flex flex-wrap gap-2 border-b border-stone-200 pb-4" role="tablist" aria-label="Manager sections">
+          {[
+            { id: 'inventory', label: 'Inventory' },
+            { id: 'menu', label: 'Menu' },
+            { id: 'financials', label: 'Reports' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                activeTab === tab.id
+                  ? 'bg-stone-900 text-white'
+                  : 'text-stone-600 hover:bg-stone-200/60'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
-        <div className="bg-white p-8 rounded shadow min-h-[500px] border border-gray-200">
+        <div className="surface-card min-h-[480px] rounded-xl p-6 sm:p-8">
           {activeTab === 'inventory' && (
             <>
-              <h2 className="text-2xl font-semibold mb-6 text-gray-800">Inventory Overview</h2>
+              <h2 className="font-display text-xl font-semibold text-stone-900">Inventory</h2>
               {inventoryError && (
-                <p className="text-red-600 mb-4" role="alert">
+                <p className="mt-4 text-red-800" role="alert">
                   {inventoryError}
                 </p>
               )}
-              {!inventoryError && inventory.length === 0 && <p className="text-gray-500">Loading inventory…</p>}
+              {!inventoryError && inventory.length === 0 && <p className="mt-6 text-stone-500">Loading inventory…</p>}
               {inventory.length > 0 && (
-                <div className="overflow-x-auto">
-                  <table className="min-w-full text-left border-collapse">
+                <div className="mt-6 overflow-x-auto">
+                  <table className="min-w-full border-collapse text-left text-sm">
                     <caption className="sr-only">Store inventory quantities and restock thresholds</caption>
                     <thead>
-                      <tr className="border-b-2 border-gray-200 bg-gray-50">
-                        <th scope="col" className="p-3 font-semibold text-gray-700">
+                      <tr className="border-b border-stone-200 text-stone-600">
+                        <th scope="col" className="pb-3 pr-4 font-medium">
                           Item
                         </th>
-                        <th scope="col" className="p-3 font-semibold text-gray-700">
+                        <th scope="col" className="pb-3 pr-4 font-medium">
                           Category
                         </th>
-                        <th scope="col" className="p-3 font-semibold text-gray-700 text-right">
-                          Quantity
+                        <th scope="col" className="pb-3 pr-4 text-right font-medium">
+                          Qty
                         </th>
-                        <th scope="col" className="p-3 font-semibold text-gray-700">
+                        <th scope="col" className="pb-3 pr-4 font-medium">
                           Unit
                         </th>
-                        <th scope="col" className="p-3 font-semibold text-gray-700 text-right">
+                        <th scope="col" className="pb-3 text-right font-medium">
                           Restock at
                         </th>
                       </tr>
                     </thead>
                     <tbody>
                       {inventory.map((row) => (
-                        <tr key={row.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="p-3 text-gray-900">{row.name}</td>
-                          <td className="p-3 text-gray-600">{row.category || '—'}</td>
-                          <td className="p-3 text-right tabular-nums">{Number(row.quantity).toFixed(2)}</td>
-                          <td className="p-3 text-gray-600">{row.unit || '—'}</td>
-                          <td className="p-3 text-right tabular-nums text-amber-700">{Number(row.restock_threshold).toFixed(2)}</td>
+                        <tr key={row.id} className="border-b border-stone-100 hover:bg-stone-50/80">
+                          <td className="py-3 pr-4 text-stone-900">{row.name}</td>
+                          <td className="py-3 pr-4 text-stone-600">{row.category || '—'}</td>
+                          <td className="py-3 pr-4 text-right tabular-nums text-stone-800">{Number(row.quantity).toFixed(2)}</td>
+                          <td className="py-3 pr-4 text-stone-600">{row.unit || '—'}</td>
+                          <td className="py-3 text-right tabular-nums text-amber-900/90">{Number(row.restock_threshold).toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -138,14 +168,14 @@ export default function Manager() {
           )}
           {activeTab === 'menu' && (
             <>
-              <h2 className="text-2xl font-semibold mb-4 text-gray-800">Menu Items</h2>
-              <p className="text-gray-500">Menu editing and pricing tools will be expanded in a later sprint.</p>
+              <h2 className="font-display text-xl font-semibold text-stone-900">Menu</h2>
+              <p className="mt-3 text-stone-600">Editing and pricing tools can be added in a later sprint.</p>
             </>
           )}
           {activeTab === 'financials' && (
             <>
-              <h2 className="text-2xl font-semibold mb-4 text-gray-800">Financials & Users</h2>
-              <p className="text-gray-500">Reports and staff management will be expanded in a later sprint.</p>
+              <h2 className="font-display text-xl font-semibold text-stone-900">Reports</h2>
+              <p className="mt-3 text-stone-600">Sales and staff reports can be added in a later sprint.</p>
             </>
           )}
         </div>
