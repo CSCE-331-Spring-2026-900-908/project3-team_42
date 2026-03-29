@@ -1,7 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import api from '../api';
 
-/** Matches seed user `Self-Service Kiosk` (third row in users). */
 const KIOSK_CASHIER_ID = 3;
 
 export default function CustomerKiosk() {
@@ -10,29 +9,44 @@ export default function CustomerKiosk() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
-  
-  // Chatbot State
+
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLog, setChatLog] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const chatEndRef = useRef(null);
-  
+
   const [copy, setCopy] = useState({
-    welcome: "Welcome to Bubble Tea!",
-    translateBtn: "Translate to Spanish",
-    addToOrder: "Add to Order",
-    total: "Total:",
-    checkout: "Checkout & Pay"
+    welcome: 'Welcome to Reveille Boba',
+    translateBtn: 'Translate to Spanish',
+    addToOrder: 'Add to order',
+    total: 'Total',
+    checkout: 'Pay now',
+    yourOrder: 'Your order',
+    stepBrowse: 'Browse',
+    stepReview: 'Review',
+    stepPay: 'Pay',
+    emptyCart: 'Tap a drink to start your order',
+    assistantHint: 'Ask about flavors, ice, or toppings',
   });
 
   useEffect(() => {
-    api.get('/menu').then(res => setMenuItems(res.data)).catch(console.error);
+    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
   }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatLog, isChatting]);
+
+  const byCategory = useMemo(() => {
+    const map = new Map();
+    for (const item of menuItems) {
+      const cat = item.category || 'Drinks';
+      if (!map.has(cat)) map.set(cat, []);
+      map.get(cat).push(item);
+    }
+    return map;
+  }, [menuItems]);
 
   const translateText = async (text, target) => {
     if (target === 'en') return text;
@@ -48,47 +62,54 @@ export default function CustomerKiosk() {
     if (isTranslating) return;
     setIsTranslating(true);
     const targetLang = language === 'en' ? 'es' : 'en';
-    
+
     if (targetLang === 'es') {
       try {
-        const [w, a, t, c] = await Promise.all([
-          translateText(copy.welcome, 'es'),
-          translateText(copy.addToOrder, 'es'),
-          translateText(copy.total, 'es'),
-          translateText(copy.checkout, 'es')
-        ]);
-        
-        const translatedMenu = await Promise.all(menuItems.map(async item => {
-          return {
-             ...item,
-             name: await translateText(item.name, 'es'),
-             description: await translateText(item.description, 'es')
-          }
-        }));
-        setMenuItems(translatedMenu);
+        const keys = [
+          'welcome',
+          'addToOrder',
+          'total',
+          'checkout',
+          'yourOrder',
+          'stepBrowse',
+          'stepReview',
+          'stepPay',
+          'emptyCart',
+          'assistantHint',
+        ];
+        const translated = await Promise.all(keys.map((k) => translateText(copy[k], 'es')));
+        const nextCopy = keys.reduce((acc, k, i) => ({ ...acc, [k]: translated[i] }), {});
+        setCopy((c) => ({ ...c, ...nextCopy, translateBtn: 'Traducir al Inglés' }));
 
-        setCopy({
-          welcome: w,
-          translateBtn: "Traducir al Inglés",
-          addToOrder: "Añadir al Pedido",
-          total: t,
-          checkout: c
-        });
+        const translatedMenu = await Promise.all(
+          menuItems.map(async (item) => ({
+            ...item,
+            name: await translateText(item.name, 'es'),
+            description: await translateText(item.description, 'es'),
+          }))
+        );
+        setMenuItems(translatedMenu);
       } catch (err) {
-        console.error("Translation failed", err);
+        console.error('Translation failed', err);
       }
     } else {
       const res = await api.get('/menu');
       setMenuItems(res.data);
       setCopy({
-        welcome: "Welcome to Bubble Tea!",
-        translateBtn: "Translate to Spanish",
-        addToOrder: "Add to Order",
-        total: "Total:",
-        checkout: "Checkout & Pay"
+        welcome: 'Welcome to Reveille Boba',
+        translateBtn: 'Translate to Spanish',
+        addToOrder: 'Add to order',
+        total: 'Total',
+        checkout: 'Pay now',
+        yourOrder: 'Your order',
+        stepBrowse: 'Browse',
+        stepReview: 'Review',
+        stepPay: 'Pay',
+        emptyCart: 'Tap a drink to start your order',
+        assistantHint: 'Ask about flavors, ice, or toppings',
       });
     }
-    
+
     setLanguage(targetLang);
     setIsTranslating(false);
   };
@@ -96,31 +117,50 @@ export default function CustomerKiosk() {
   const handleChatSubmit = async (e) => {
     e.preventDefault();
     if (!chatInput.trim()) return;
-    
+
     const userMsg = chatInput;
-    setChatLog(prev => [...prev, { sender: 'user', text: userMsg }]);
+    setChatLog((prev) => [...prev, { sender: 'user', text: userMsg }]);
     setChatInput('');
     setIsChatting(true);
-    
+
     try {
-      const menuContext = menuItems.map(i => `${i.name}: ${i.description} ($${i.default_price})`).join('; ');
+      const menuContext = menuItems.map((i) => `${i.name}: ${i.description} ($${i.default_price})`).join('; ');
       const res = await api.post('/chat', { message: userMsg, menuContext, language });
-      setChatLog(prev => [...prev, { sender: 'ai', text: res.data.reply }]);
-    } catch (err) {
-      setChatLog(prev => [...prev, { sender: 'ai', text: "Sorry, I'm having trouble connecting." }]);
+      setChatLog((prev) => [...prev, { sender: 'ai', text: res.data.reply }]);
+    } catch {
+      setChatLog((prev) => [...prev, { sender: 'ai', text: "Sorry, I'm having trouble connecting." }]);
     }
     setIsChatting(false);
   };
 
   const addToCart = (item) => {
-    setCart((prev) => [...prev, { ...item, unique_id: Date.now(), quantity: 1 }]);
+    setCart((prev) => {
+      const i = prev.findIndex((l) => l.id === item.id);
+      if (i >= 0) {
+        const next = [...prev];
+        next[i] = { ...next[i], quantity: next[i].quantity + 1 };
+        return next;
+      }
+      return [...prev, { ...item, unique_id: Date.now(), quantity: 1 }];
+    });
   };
 
-  const removeFromCart = (unique_id) => {
+  const decrementLine = (unique_id) => {
+    setCart((prev) =>
+      prev.flatMap((line) => {
+        if (line.unique_id !== unique_id) return [line];
+        if (line.quantity <= 1) return [];
+        return [{ ...line, quantity: line.quantity - 1 }];
+      })
+    );
+  };
+
+  const removeLine = (unique_id) => {
     setCart((prev) => prev.filter((line) => line.unique_id !== unique_id));
   };
 
   const cartTotal = cart.reduce((sum, line) => sum + parseFloat(line.default_price) * line.quantity, 0);
+  const itemCount = cart.reduce((n, line) => n + line.quantity, 0);
 
   const handleCheckout = async () => {
     if (cart.length === 0) return;
@@ -130,13 +170,13 @@ export default function CustomerKiosk() {
       menu_item_id: i.id,
       quantity: i.quantity,
       customization: null,
-      price: i.default_price
+      price: i.default_price,
     }));
     try {
       const res = await api.post('/orders', {
         cashier_id: KIOSK_CASHIER_ID,
         total_amount,
-        items: formattedItems
+        items: formattedItems,
       });
       alert(`${res.data.message} (Order #${res.data.id})`);
       setCart([]);
@@ -147,124 +187,260 @@ export default function CustomerKiosk() {
     setCheckoutLoading(false);
   };
 
-  const mainPadBottom = cart.length > 0 ? 'pb-56' : 'pb-40';
+  const cartOpen = cart.length > 0;
+  const mainPad = cartOpen ? 'pb-[340px] sm:pb-[300px]' : 'pb-36';
 
   return (
-    <div className="min-h-screen bg-purple-50 flex flex-col font-sans relative">
-      <header className="bg-purple-900 text-white p-6 text-center text-3xl font-extrabold shadow-md flex justify-between items-center z-20">
-        <span>{copy.welcome}</span>
-        <button 
-          onClick={handleTranslateToggle}
-          disabled={isTranslating}
-          className="bg-purple-700 px-6 py-3 min-w-[300px] rounded-lg text-2xl border-2 border-purple-500 hover:bg-purple-600 disabled:opacity-50 cursor-pointer focus:ring-4 ring-white shadow-sm transition">
-          {isTranslating ? '...' : copy.translateBtn}
-        </button>
-      </header>
-      
-      <main className={`flex-1 p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 overflow-y-auto ${mainPadBottom} z-10`}>
-        {menuItems.map(item => (
-          <div key={item.id} className="bg-white p-8 rounded-2xl shadow-xl border-4 border-purple-100 flex flex-col items-center">
-            {item.image_url ? 
-              <img src={item.image_url} alt={item.name} className="w-56 h-56 object-cover rounded-full mb-6 shadow-md border-4 border-purple-50" /> 
-              : <div className="w-56 h-56 bg-gray-200 rounded-full mb-6 flex items-center justify-center text-gray-400 font-bold text-2xl shadow" aria-hidden="true">No Image</div>
-            }
-            <h2 className="text-4xl font-black text-center mb-3 text-purple-900 leading-tight">{item.name}</h2>
-            <p className="text-center text-gray-600 text-xl mb-6 line-clamp-3 leading-relaxed">{item.description}</p>
-            <div className="text-3xl font-extrabold text-purple-800 mb-6 bg-purple-50 px-6 py-2 rounded-xl border border-purple-100" aria-label={`${language === 'es' ? 'Precio' : 'Price'} ${parseFloat(item.default_price).toFixed(2)} dollars`}>
-              ${parseFloat(item.default_price).toFixed(2)}
+    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-violet-50 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)]">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-violet-200/40 to-transparent"
+        aria-hidden="true"
+      />
+
+      <header className="relative z-20 border-b border-violet-100/80 bg-white/75 px-5 py-6 backdrop-blur-md sm:px-10">
+        <div className="mx-auto flex max-w-6xl flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Self-service</p>
+            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-violet-950 sm:text-4xl">
+              {copy.welcome}
+            </h1>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                { n: 1, label: copy.stepBrowse, active: !cartOpen },
+                { n: 2, label: copy.stepReview, active: cartOpen && cartTotal > 0 },
+                { n: 3, label: copy.stepPay, active: false },
+              ].map((s) => (
+                <span
+                  key={s.n}
+                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                    s.active ? 'bg-violet-600 text-white shadow-md shadow-violet-600/25' : 'bg-violet-100/80 text-violet-800'
+                  }`}
+                >
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">{s.n}</span>
+                  {s.label}
+                </span>
+              ))}
             </div>
-            <button
-              type="button"
-              onClick={() => addToCart(item)}
-              className="mt-auto w-full bg-purple-600 text-white text-3xl py-6 rounded-xl font-bold cursor-pointer hover:bg-purple-700 transition-colors focus:ring-4 ring-purple-300 shadow-md min-h-[56px] min-w-[56px]"
-              aria-label={`${copy.addToOrder}: ${item.name}`}
-            >
-              {copy.addToOrder}
-            </button>
           </div>
-        ))}
+          <button
+            type="button"
+            onClick={handleTranslateToggle}
+            disabled={isTranslating}
+            className="self-start rounded-2xl border-2 border-violet-200 bg-white px-6 py-3 text-base font-semibold text-violet-900 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-50 lg:self-center"
+          >
+            {isTranslating ? '…' : copy.translateBtn}
+          </button>
+        </div>
+      </header>
+
+      <main className={`relative z-10 mx-auto max-w-6xl px-5 py-10 sm:px-10 ${mainPad}`}>
+        <div className="space-y-14">
+          {[...byCategory.entries()].map(([category, items]) => (
+            <section key={category}>
+              <h2 className="mb-6 font-display text-2xl font-bold text-violet-950">{category}</h2>
+              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                {items.map((item) => (
+                  <article
+                    key={item.id}
+                    className="flex flex-col overflow-hidden rounded-3xl border border-violet-100/90 bg-white shadow-[0_8px_30px_-12px_rgba(91,33,182,0.2)] ring-1 ring-violet-100/50"
+                  >
+                    <div className="relative aspect-[4/3] bg-gradient-to-br from-violet-100 to-fuchsia-50">
+                      {item.image_url ? (
+                        <img
+                          src={item.image_url}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-6xl opacity-30" aria-hidden="true">
+                          🧋
+                        </div>
+                      )}
+                      <span className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
+                        {category}
+                      </span>
+                    </div>
+                    <div className="flex flex-1 flex-col p-6">
+                      <h3 className="font-display text-xl font-bold leading-snug text-violet-950">{item.name}</h3>
+                      <p className="mt-2 flex-1 text-sm leading-relaxed text-stone-600 line-clamp-3">{item.description}</p>
+                      <div className="mt-4 flex items-end justify-between gap-4 border-t border-violet-100 pt-4">
+                        <p
+                          className="font-display text-2xl font-bold tabular-nums text-violet-900"
+                          aria-label={`${parseFloat(item.default_price).toFixed(2)} dollars`}
+                        >
+                          ${parseFloat(item.default_price).toFixed(2)}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => addToCart(item)}
+                          className="rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 py-3 text-base font-bold text-white shadow-lg shadow-violet-600/25 transition hover:from-violet-500 hover:to-fuchsia-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+                          aria-label={`${copy.addToOrder}: ${item.name}`}
+                        >
+                          {copy.addToOrder}
+                        </button>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       </main>
 
-      {cart.length > 0 && (
+      {cartOpen && (
         <div
-          className="fixed bottom-32 left-0 right-0 z-20 max-h-36 overflow-y-auto border-t border-purple-200 bg-white/95 px-6 py-3 shadow-md backdrop-blur-sm"
-          aria-label={language === 'es' ? 'Artículos en el carrito' : 'Items in your order'}
+          className="fixed bottom-[120px] left-0 right-0 z-30 max-h-[200px] overflow-y-auto border-t border-violet-200/80 bg-white/90 px-5 py-4 shadow-[0_-12px_40px_-16px_rgba(91,33,182,0.25)] backdrop-blur-md sm:bottom-[112px]"
+          aria-label={copy.yourOrder}
         >
-          <ul className="mx-auto flex max-w-5xl flex-col gap-2">
+          <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 pb-2">
+            <p className="font-display text-lg font-bold text-violet-950">{copy.yourOrder}</p>
+            <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-bold text-violet-800">
+              {itemCount} {itemCount === 1 ? 'item' : 'items'}
+            </span>
+          </div>
+          <ul className="mx-auto flex max-w-6xl flex-col gap-2">
             {cart.map((line) => (
-              <li key={line.unique_id} className="flex items-center justify-between gap-4 text-lg text-gray-800">
-                <span className="truncate font-semibold">
-                  {line.name}{' '}
-                  <span className="font-normal text-gray-600">
-                    (${parseFloat(line.default_price).toFixed(2)})
+              <li
+                key={line.unique_id}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-violet-50/50 px-4 py-3"
+              >
+                <span className="min-w-0 flex-1 font-semibold text-stone-800">
+                  {line.name}
+                  <span className="ml-2 text-sm font-normal tabular-nums text-stone-500">
+                    ${parseFloat(line.default_price).toFixed(2)} × {line.quantity}
                   </span>
                 </span>
-                <button
-                  type="button"
-                  onClick={() => removeFromCart(line.unique_id)}
-                  className="shrink-0 rounded-lg bg-red-50 px-4 py-2 text-base font-bold text-red-600 hover:bg-red-100 focus:ring-2 focus:ring-red-300"
-                  aria-label={language === 'es' ? `Quitar ${line.name}` : `Remove ${line.name}`}
-                >
-                  {language === 'es' ? 'Quitar' : 'Remove'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center rounded-xl bg-white p-1 shadow-sm ring-1 ring-violet-100">
+                    <button
+                      type="button"
+                      onClick={() => decrementLine(line.unique_id)}
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
+                      aria-label={language === 'es' ? 'Menos' : 'Decrease'}
+                    >
+                      −
+                    </button>
+                    <span className="min-w-[2rem] text-center font-bold tabular-nums">{line.quantity}</span>
+                    <button
+                      type="button"
+                      onClick={() => addToCart(line)}
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
+                      aria-label={language === 'es' ? 'Más' : 'Increase'}
+                    >
+                      +
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => removeLine(line.unique_id)}
+                    className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                    aria-label={language === 'es' ? 'Eliminar' : 'Remove'}
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
               </li>
             ))}
           </ul>
         </div>
       )}
 
-      {/* Floating Chat Assistant */}
-      <div className={`fixed bottom-40 right-8 w-[450px] bg-white rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] border-4 border-purple-300 flex flex-col transition-transform z-50 origin-bottom-right ${chatOpen ? 'scale-100' : 'scale-0'}`}>
-        <div className="bg-gradient-to-r from-purple-800 to-purple-600 text-white p-6 rounded-t-2xl flex justify-between items-center shadow-md">
-          <span className="font-extrabold text-2xl flex items-center">✨ Boba Assistant</span>
-          <button onClick={() => setChatOpen(false)} className="text-purple-200 hover:text-white cursor-pointer text-3xl px-2">✕</button>
-        </div>
-        <div className="h-96 overflow-y-auto p-5 space-y-4 bg-purple-50 flex flex-col">
-          {chatLog.length === 0 && <p className="text-purple-400 text-center italic mt-10 font-bold text-xl">Hi! Ask me anything about our Bubble Tea menu!</p>}
-          {chatLog.map((msg, i) => (
-            <div key={i} className={`p-4 rounded-3xl max-w-[85%] text-[1.1rem] leading-relaxed shadow-sm flex flex-col ${msg.sender === 'user' ? 'bg-purple-600 text-white self-end rounded-br-sm' : 'bg-white border-2 border-purple-100 text-gray-800 self-start rounded-bl-sm'}`}>
-              <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
-            </div>
-          ))}
-          {isChatting && <div className="text-purple-400 italic text-[1.1rem] font-bold animate-pulse ml-2 bg-purple-100 self-start p-3 rounded-2xl rounded-bl-sm border border-purple-200 shadow-sm">Typing...</div>}
-          <div ref={chatEndRef} />
-        </div>
-        <form onSubmit={handleChatSubmit} className="p-5 bg-white border-t border-purple-200 flex rounded-b-2xl shadow-[0_-4px_10px_rgba(0,0,0,0.05)]">
-          <input 
-            type="text" 
-            value={chatInput} 
-            onChange={e => setChatInput(e.target.value)}
-            className="flex-1 bg-gray-100 rounded-2xl px-5 py-4 outline-none focus:ring-4 ring-purple-300 text-[1.1rem] border-2 border-transparent transition"
-            placeholder="What does Taro taste like...?" 
-          />
-          <button disabled={isChatting} type="submit" className="ml-3 bg-purple-600 hover:bg-purple-700 transition-colors text-white px-8 rounded-2xl font-bold text-xl cursor-pointer disabled:opacity-50">Ask</button>
-        </form>
-      </div>
+      {!cartOpen && (
+        <p className="pointer-events-none fixed bottom-32 left-0 right-0 z-10 text-center text-sm text-violet-400/90">
+          {copy.emptyCart}
+        </p>
+      )}
 
-      <button 
-        onClick={() => setChatOpen(!chatOpen)}
-        className={`fixed bottom-40 right-8 bg-purple-700 text-white w-24 h-24 rounded-full shadow-[0_10px_30px_rgba(0,0,0,0.5)] flex items-center justify-center text-5xl hover:scale-110 active:scale-95 transition-transform cursor-pointer border-4 border-purple-300 z-40 ${chatOpen ? 'scale-0' : 'scale-100'}`}>
-        ✨
-      </button>
-
-      <div className="fixed bottom-0 z-30 flex w-full items-center justify-between bg-white p-8 shadow-[0_-10px_20px_-5px_rgba(0,0,0,0.2)]">
-        <div
-          className="text-5xl font-black tracking-tight text-purple-900 sm:text-6xl"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          {copy.total} ${cartTotal.toFixed(2)}
-        </div>
+      <div
+        className={`fixed bottom-28 right-6 z-40 flex flex-col items-end gap-3 sm:bottom-32 sm:right-10 ${chatOpen ? 'pointer-events-none opacity-0' : ''}`}
+      >
         <button
           type="button"
-          onClick={handleCheckout}
-          disabled={cart.length === 0 || checkoutLoading}
-          className="min-h-[56px] rounded-3xl border-b-[10px] border-purple-900 bg-purple-600 px-12 py-8 text-3xl font-black text-white shadow-xl transition hover:bg-purple-700 focus:ring-4 focus:ring-purple-300 active:translate-y-2 active:border-b-0 disabled:cursor-not-allowed disabled:opacity-50 sm:px-20 sm:text-4xl"
-          aria-label={copy.checkout}
+          onClick={() => setChatOpen(true)}
+          className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-2xl text-white shadow-xl shadow-violet-600/40 transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2"
+          aria-label="Open menu assistant"
         >
-          {checkoutLoading ? '…' : copy.checkout}
+          ✨
         </button>
       </div>
+
+      <div
+        className={`fixed bottom-28 right-6 z-50 w-[min(100vw-2rem,420px)] origin-bottom-right transition sm:bottom-32 sm:right-10 ${
+          chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
+        }`}
+      >
+        <div className="flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-2xl shadow-violet-900/20">
+          <div className="flex items-center justify-between bg-gradient-to-r from-violet-800 to-fuchsia-700 px-5 py-4 text-white">
+            <span className="font-display text-lg font-bold">Boba assistant</span>
+            <button
+              type="button"
+              onClick={() => setChatOpen(false)}
+              className="rounded-lg p-2 text-white/80 hover:bg-white/10 hover:text-white"
+              aria-label="Close assistant"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="max-h-72 overflow-y-auto space-y-3 bg-violet-50/50 p-4">
+            {chatLog.length === 0 && (
+              <p className="text-center text-sm text-violet-600/80">{copy.assistantHint}</p>
+            )}
+            {chatLog.map((msg, i) => (
+              <div
+                key={i}
+                className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                  msg.sender === 'user'
+                    ? 'ml-auto bg-violet-600 text-white'
+                    : 'border border-violet-100 bg-white text-stone-800'
+                }`}
+              >
+                <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
+              </div>
+            ))}
+            {isChatting && (
+              <p className="text-sm italic text-violet-500">…</p>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+          <form onSubmit={handleChatSubmit} className="flex gap-2 border-t border-violet-100 bg-white p-3">
+            <input
+              type="text"
+              value={chatInput}
+              onChange={(e) => setChatInput(e.target.value)}
+              className="min-h-[48px] flex-1 rounded-2xl border border-violet-100 bg-stone-50 px-4 text-base outline-none focus:ring-2 focus:ring-violet-400"
+              placeholder={language === 'es' ? 'Pregunta sobre el menú…' : 'Ask about the menu…'}
+            />
+            <button
+              type="submit"
+              disabled={isChatting}
+              className="rounded-2xl bg-violet-600 px-5 font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+            >
+              {language === 'es' ? 'Enviar' : 'Send'}
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-violet-200/90 bg-white/95 px-5 py-5 backdrop-blur-md sm:px-10">
+        <div className="mx-auto flex max-w-6xl flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div aria-live="polite" aria-atomic="true">
+            <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">{copy.total}</p>
+            <p className="font-display text-4xl font-bold tabular-nums text-violet-950 sm:text-5xl">${cartTotal.toFixed(2)}</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleCheckout}
+            disabled={cart.length === 0 || checkoutLoading}
+            className="min-h-[56px] rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-10 py-4 text-xl font-bold text-white shadow-lg shadow-violet-600/30 transition hover:from-violet-500 hover:to-fuchsia-500 disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[240px] sm:text-2xl"
+            aria-label={copy.checkout}
+          >
+            {checkoutLoading ? '…' : copy.checkout}
+          </button>
+        </div>
+      </footer>
     </div>
   );
 }
