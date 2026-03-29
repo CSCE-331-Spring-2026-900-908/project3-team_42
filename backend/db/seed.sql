@@ -1,6 +1,7 @@
 INSERT INTO users (name, role, email) VALUES
 ('Manager Reveille', 'manager', 'reveille.bubbletea@gmail.com'),
-('Cashier Alice', 'cashier', 'alice@boba.com');
+('Cashier Alice', 'cashier', 'alice@boba.com'),
+('Self-Service Kiosk', 'cashier', 'kiosk@reveilleboba.local');
 
 INSERT INTO inventory (name, category, quantity, unit, restock_threshold) VALUES
 ('Tapioca Pearls (Boba)', 'Topping', 500, 'oz', 100),
