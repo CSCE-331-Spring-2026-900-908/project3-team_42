@@ -10,6 +10,8 @@ import {
   VerticalBarChart,
 } from '../components/manager/SvgCharts';
 
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 function toISODate(d) {
   const dt = new Date(d);
   return dt.toISOString().slice(0, 10);
@@ -166,6 +168,18 @@ export default function Manager() {
   };
 
   if (!user) {
+    if (!googleClientId) {
+      return (
+        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-6 px-4">
+          <h1 className="text-3xl font-extrabold text-teal-900">Manager Access</h1>
+          <p className="text-gray-700 text-lg max-w-xl text-center">
+            Google OAuth is not configured. Set <code>VITE_GOOGLE_CLIENT_ID</code> in{' '}
+            <code>frontend/.env.local</code>, then restart the dev server.
+          </p>
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-6">
         <h1 className="text-4xl font-extrabold text-blue-900">Manager Access</h1>
