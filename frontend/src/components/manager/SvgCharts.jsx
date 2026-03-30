@@ -43,6 +43,8 @@ export function VerticalBarChart({ data, height = 260, valueFormatter = formatCu
   return (
     <div className="overflow-x-auto">
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} role="img" aria-label="Bar chart">
+        {/* Opaque background so the chart area doesn't look transparent */}
+        <rect x="0" y="0" width={w} height={h} fill="#ffffff" />
         {/* y grid + ticks */}
         {ticks.map((t, i) => {
           const y = padT + innerH - (t / maxV) * innerH;
@@ -71,7 +73,8 @@ export function VerticalBarChart({ data, height = 260, valueFormatter = formatCu
                 width={barW}
                 height={barH}
                 rx={6}
-                fill={isEmpty ? 'rgba(15,118,110,0.12)' : 'rgba(13,79,74,0.85)'}
+                // Use opaque fills for readability; only "empty" bars stay faint.
+                fill={isEmpty ? 'rgba(13,79,74,0.18)' : '#0d4f4a'}
               />
               {i % labelEvery === 0 && (
                 <text
@@ -123,6 +126,8 @@ export function LineChartCategory({ data, height = 260 }) {
   return (
     <div className="overflow-x-auto">
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} role="img" aria-label="Line chart">
+        {/* Opaque background so the chart area doesn't look transparent */}
+        <rect x="0" y="0" width={w} height={h} fill="#ffffff" />
         {ticks.map((t, i) => {
           const y = padT + innerH - (t / maxV) * innerH;
           return (
@@ -195,6 +200,8 @@ export function HorizontalBarChart({ data, height = 320, valueFormatter = format
   return (
     <div className="overflow-x-auto">
       <svg viewBox={`0 0 ${w} ${h}`} width="100%" height={h} role="img" aria-label="Horizontal bar chart">
+        {/* Opaque background so the chart area doesn't look transparent */}
+        <rect x="0" y="0" width={w} height={h} fill="#ffffff" />
         {/* x grid + ticks */}
         {ticks.map((t, i) => {
           const x = padL + (t / maxV) * innerW;
@@ -218,7 +225,7 @@ export function HorizontalBarChart({ data, height = 320, valueFormatter = format
               <text x={padL - 10} y={y + barH / 2 + 4} textAnchor="end" fontSize="12" fill="rgba(28,25,23,0.78)">
                 {String(d.label)}
               </text>
-              <rect x={padL} y={y} width={barW} height={barH} rx={10} fill="rgba(13,79,74,0.86)" />
+              <rect x={padL} y={y} width={barW} height={barH} rx={10} fill="#0d4f4a" />
               {i % labelEvery === 0 && (
                 <text x={padL + barW + 8} y={y + barH / 2 + 4} fontSize="12" fill="rgba(28,25,23,0.78)">
                   {valueFormatter(v)}
@@ -248,11 +255,11 @@ export function DonutChart({ data, size = 180 }) {
   const safe = Array.isArray(data) ? data : [];
   const total = safe.reduce((sum, d) => sum + Number(d.value || 0), 0);
   const colors = [
-    'rgba(13,79,74,0.95)',
-    'rgba(94,234,212,0.95)',
-    'rgba(56,189,248,0.9)',
-    'rgba(99,102,241,0.9)',
-    'rgba(251,191,36,0.9)',
+    '#0d4f4a',
+    '#5eead4',
+    '#38bdf8',
+    '#6366f1',
+    '#fbbf24',
   ];
   const thickness = 28;
   const r = (size - thickness) / 2;
@@ -272,6 +279,8 @@ export function DonutChart({ data, size = 180 }) {
   return (
     <div className="flex flex-col items-center gap-3">
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img" aria-label="Donut chart">
+        {/* Opaque background */}
+        <rect x="0" y="0" width={size} height={size} fill="#ffffff" rx="18" />
         <circle cx={cx} cy={cy} r={r} stroke="rgba(15,118,110,0.15)" strokeWidth={thickness} fill="none" />
         {segments.map((s) => {
           // If value is 0, end==start; avoid degenerate paths.
