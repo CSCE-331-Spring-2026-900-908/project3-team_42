@@ -14,9 +14,15 @@ async function initializeDB() {
         await db.query(seed);
         console.log('Database seeded successfully.');
 
+        await db.end();
         process.exit(0);
     } catch (err) {
         console.error('Error initializing database:', err);
+        try {
+            await db.end();
+        } catch (_) {
+            /* ignore */
+        }
         process.exit(1);
     }
 }
