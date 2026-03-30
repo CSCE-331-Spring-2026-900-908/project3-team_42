@@ -56,23 +56,145 @@ router.post('/orders', async (req, res) => {
     const { cashier_id, total_amount, items } = req.body;
     try {
         await db.query('BEGIN');
-        
+
         const orderResult = await db.query(
-            'INSERT INTO orders (cashier_id, total_amount) VALUES ($1, $2) RETURNING id',
+            "INSERT INTO orders (cashier_id, total_amount, status) VALUES ($1, $2, 'completed') RETURNING id",
             [cashier_id, total_amount]
         );
         const orderId = orderResult.rows[0].id;
-        
+
         // items should be an array of: { menu_item_id, quantity, customization, price }
-        for (let item of items) {
+        for (let item of items || []) {
             await db.query(
                 'INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time) VALUES ($1, $2, $3, $4, $5)',
                 [orderId, item.menu_item_id, item.quantity, item.customization || null, item.price]
             );
         }
-        
+
+        // Project 2-compatible transaction write:
+        // 1) Create "Transaction" row
+        // 2) Create TransactionItem rows
+        // 3) Deduct ingredient inventory using ProductInventory mapping
+        const txIdRes = await db.query(
+            'SELECT COALESCE(MAX(TransactionID), 0) + 1 AS next_id FROM "Transaction"'
+        );
+        const transactionId = txIdRes.rows[0].next_id;
+
+        const txItemIdRes = await db.query(
+            'SELECT COALESCE(MAX(TransactionItemID), 0) + 1 AS next_id FROM TransactionItem'
+        );
+        let nextTransactionItemId = txItemIdRes.rows[0].next_id;
+
+        await db.query(
+            'INSERT INTO "Transaction" (TransactionID, TransactionTimestamp, TotalAmount) VALUES ($1, NOW(), $2)',
+            [transactionId, total_amount]
+        );
+
+        for (let item of items || []) {
+            await db.query(
+                'INSERT INTO TransactionItem (TransactionItemID, TransactionID, ProductID, Quantity, PriceAtPurchase) VALUES ($1, $2, $3, $4, $5)',
+                [nextTransactionItemId, transactionId, item.menu_item_id, item.quantity, item.price]
+            );
+
+            // Deduct ingredients: each product consumes linked inventory items by quantity.
+            await db.query(
+                `UPDATE inventory inv
+                 SET quantity = GREATEST(0, inv.quantity - $1)
+                 WHERE inv.id IN (
+                     SELECT pi.InventoryID
+                     FROM ProductInventory pi
+                     WHERE pi.ProductID = $2
+                 )`,
+                [item.quantity, item.menu_item_id]
+            );
+
+            nextTransactionItemId += 1;
+        }
+
+        // Ensure TotalAmount matches TransactionItem revenue (avoids float rounding drift).
+        await db.query(
+            `
+            UPDATE "Transaction" t
+            SET TotalAmount = sub.total_amount
+            FROM (
+                SELECT SUM(Quantity * PriceAtPurchase) AS total_amount
+                FROM TransactionItem
+                WHERE TransactionID = $1
+                GROUP BY TransactionID
+            ) sub
+            WHERE t.TransactionID = $1
+            `,
+            [transactionId]
+        );
+
+        await db.query(
+            'UPDATE orders SET transaction_id = $1 WHERE id = $2',
+            [transactionId, orderId]
+        );
+
         await db.query('COMMIT');
         res.status(201).json({ id: orderId, message: 'Order created successfully' });
+    } catch (err) {
+        await db.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Cancel an order (so manager reports exclude it)
+router.post('/orders/:orderId/cancel', async (req, res) => {
+    const orderId = Number(req.params.orderId);
+    try {
+        await db.query('BEGIN');
+
+        const orderRes = await db.query(
+            'SELECT id, status, transaction_id FROM orders WHERE id = $1',
+            [orderId]
+        );
+
+        if (orderRes.rows.length === 0) {
+            await db.query('ROLLBACK');
+            return res.status(404).json({ error: 'Order not found' });
+        }
+
+        const order = orderRes.rows[0];
+        if (order.status === 'cancelled') {
+            await db.query('ROLLBACK');
+            return res.status(400).json({ error: 'Order already cancelled' });
+        }
+
+        // Reverse inventory deductions using order_items + ProductInventory mapping.
+        await db.query(
+            `
+            UPDATE inventory inv
+            SET quantity = inv.quantity + used.used_qty
+            FROM (
+                SELECT pi.InventoryID AS inventory_id, SUM(oi.quantity) AS used_qty
+                FROM order_items oi
+                JOIN ProductInventory pi ON pi.ProductID = oi.menu_item_id
+                WHERE oi.order_id = $1
+                GROUP BY pi.InventoryID
+            ) used
+            WHERE inv.id = used.inventory_id
+            `,
+            [orderId]
+        );
+
+        // Mark the order cancelled for UI/history.
+        await db.query(
+            "UPDATE orders SET status = 'cancelled' WHERE id = $1",
+            [orderId]
+        );
+
+        // Remove the corresponding Project 2-style transaction so reports exclude it.
+        if (order.transaction_id) {
+            await db.query(
+                'DELETE FROM "Transaction" WHERE TransactionID = $1',
+                [order.transaction_id]
+            );
+        }
+
+        await db.query('COMMIT');
+        res.json({ id: orderId, message: 'Order cancelled successfully' });
     } catch (err) {
         await db.query('ROLLBACK');
         res.status(500).json({ error: err.message });
@@ -87,16 +209,24 @@ router.post('/orders', async (req, res) => {
 router.get('/reports/x', async (req, res) => {
     try {
         const now = new Date();
-        const dayStart = new Date(now);
-        dayStart.setHours(0, 0, 0, 0);
+
+        const stateRes = await db.query(
+            'SELECT business_day_start FROM manager_report_state WHERE singleton_id = 1'
+        );
+        const stateRow = stateRes.rows[0];
+        const dayStart = stateRow?.business_day_start ? new Date(stateRow.business_day_start) : (() => {
+            const d = new Date(now);
+            d.setHours(0, 0, 0, 0);
+            return d;
+        })();
 
         const hourlySql = `
             SELECT
-                EXTRACT(HOUR FROM created_at) AS hr,
+                EXTRACT(HOUR FROM TransactionTimestamp) AS hr,
                 COUNT(*) AS sales_count,
-                COALESCE(SUM(total_amount), 0) AS sales_total
-            FROM orders
-            WHERE created_at >= $1 AND created_at < $2
+                COALESCE(SUM(TotalAmount), 0) AS sales_total
+            FROM "Transaction"
+            WHERE TransactionTimestamp >= $1 AND TransactionTimestamp < $2
             GROUP BY hr
             ORDER BY hr
         `;
@@ -104,9 +234,9 @@ router.get('/reports/x', async (req, res) => {
         const totalsSql = `
             SELECT
                 COUNT(*) AS sales_count,
-                COALESCE(SUM(total_amount), 0) AS sales_total
-            FROM orders
-            WHERE created_at >= $1 AND created_at < $2
+                COALESCE(SUM(TotalAmount), 0) AS sales_total
+            FROM "Transaction"
+            WHERE TransactionTimestamp >= $1 AND TransactionTimestamp < $2
         `;
 
         const hourlyRows = await db.query(hourlySql, [dayStart, now]);
@@ -137,7 +267,7 @@ router.get('/reports/x', async (req, res) => {
     }
 });
 
-// Product usage: aggregate units sold per menu item over a date range
+// Product usage: inventory consumed by sold products over a date range
 router.get('/reports/product-usage', async (req, res) => {
     try {
         const { from, to } = req.query;
@@ -148,19 +278,24 @@ router.get('/reports/product-usage', async (req, res) => {
 
         const sql = `
             SELECT
-                mi.name AS item_name,
-                COALESCE(SUM(oi.quantity), 0) AS used_qty
-            FROM order_items oi
-            JOIN orders o ON o.id = oi.order_id
-            JOIN menu_items mi ON mi.id = oi.menu_item_id
-            WHERE o.created_at >= $1 AND o.created_at < $2
-            GROUP BY mi.id, mi.name
-            ORDER BY used_qty DESC, mi.name
+                inv.id AS inventory_id,
+                inv.name AS inventory_name,
+                inv.quantity AS current_qty,
+                COALESCE(SUM(CASE WHEN t.TransactionID IS NOT NULL THEN ti.Quantity ELSE 0 END), 0) AS used_qty
+            FROM inventory inv
+            LEFT JOIN ProductInventory pi ON pi.InventoryID = inv.id
+            LEFT JOIN TransactionItem ti ON ti.ProductID = pi.ProductID
+            LEFT JOIN "Transaction" t
+                ON t.TransactionID = ti.TransactionID
+                AND t.TransactionTimestamp >= $1
+                AND t.TransactionTimestamp < $2
+            GROUP BY inv.id, inv.name, inv.quantity
+            ORDER BY used_qty DESC, inv.name
         `;
 
         const rows = await db.query(sql, [start, endExclusive]);
         const points = (rows.rows || []).map((r) => ({
-            itemName: r.item_name,
+            itemName: r.inventory_name,
             usedQuantity: Number(r.used_qty || 0),
         }));
 
@@ -182,12 +317,12 @@ router.get('/reports/sales-by-item', async (req, res) => {
         const sql = `
             SELECT
                 mi.name AS item_name,
-                COALESCE(SUM(oi.quantity), 0) AS qty_sold,
-                COALESCE(SUM(oi.quantity * oi.price_at_time), 0) AS revenue
-            FROM order_items oi
-            JOIN orders o ON o.id = oi.order_id
-            JOIN menu_items mi ON mi.id = oi.menu_item_id
-            WHERE o.created_at >= $1 AND o.created_at < $2
+                COALESCE(SUM(ti.Quantity), 0) AS qty_sold,
+                COALESCE(SUM(ti.Quantity * ti.PriceAtPurchase), 0) AS revenue
+            FROM TransactionItem ti
+            JOIN "Transaction" t ON t.TransactionID = ti.TransactionID
+            JOIN menu_items mi ON mi.id = ti.ProductID
+            WHERE t.TransactionTimestamp >= $1 AND t.TransactionTimestamp < $2
             GROUP BY mi.id, mi.name
             ORDER BY revenue DESC, mi.name
         `;
@@ -211,32 +346,51 @@ router.post('/reports/z-report', async (req, res) => {
         const { signature } = req.body || {};
         const employeeSignature = String(signature || '').trim() || 'Manager';
 
-        const now = new Date();
-        const dayStart = new Date(now);
-        dayStart.setHours(0, 0, 0, 0);
+        await db.query('BEGIN');
+
+        const stateRes = await db.query(
+            'SELECT business_day_start, last_z_report_date FROM manager_report_state WHERE singleton_id = 1 FOR UPDATE'
+        );
+
+        const state = stateRes.rows[0];
+        if (!state) {
+            await db.query('ROLLBACK');
+            return res.status(500).json({ error: 'Z-report state row missing.' });
+        }
+
+        const businessStart = new Date(state.business_day_start);
+        const lastZDate = state.last_z_report_date ? new Date(state.last_z_report_date) : null;
+        const todayStr = new Date().toISOString().slice(0, 10);
+
+        if (lastZDate && lastZDate.toISOString().slice(0, 10) === todayStr) {
+            await db.query('ROLLBACK');
+            return res.status(400).json({ error: 'Z-report already generated today.' });
+        }
+
+        const businessEnd = new Date();
 
         const totalsSql = `
             SELECT
                 COUNT(*) AS sales_count,
-                COALESCE(SUM(total_amount), 0) AS sales_total
-            FROM orders
-            WHERE created_at >= $1 AND created_at < $2
+                COALESCE(SUM(TotalAmount), 0) AS sales_total
+            FROM "Transaction"
+            WHERE TransactionTimestamp >= $1 AND TransactionTimestamp < $2
         `;
 
         const topItemSql = `
             SELECT
                 mi.name AS item_name,
-                COALESCE(SUM(oi.quantity), 0) AS units
-            FROM order_items oi
-            JOIN orders o ON o.id = oi.order_id
-            JOIN menu_items mi ON mi.id = oi.menu_item_id
-            WHERE o.created_at >= $1 AND o.created_at < $2
+                COALESCE(SUM(ti.Quantity), 0) AS units
+            FROM TransactionItem ti
+            JOIN menu_items mi ON mi.id = ti.ProductID
+            JOIN "Transaction" t ON t.TransactionID = ti.TransactionID
+            WHERE t.TransactionTimestamp >= $1 AND t.TransactionTimestamp < $2
             GROUP BY mi.id, mi.name
             ORDER BY units DESC, mi.name
             LIMIT 1
         `;
 
-        const totalsRows = await db.query(totalsSql, [dayStart, now]);
+        const totalsRows = await db.query(totalsSql, [businessStart, businessEnd]);
         const totals = totalsRows.rows[0] || { sales_count: 0, sales_total: 0 };
 
         const salesCount = Number(totals.sales_count || 0);
@@ -248,16 +402,40 @@ router.post('/reports/z-report', async (req, res) => {
         const voids = 0;
         const serviceCharges = 0;
 
-        const topRows = await db.query(topItemSql, [dayStart, now]);
+        const topRows = await db.query(topItemSql, [businessStart, businessEnd]);
         const topItem = topRows.rows[0]?.item_name || 'N/A';
 
-        const paymentMethods = [
-            { methodName: 'Unspecified', totalAmount: salesTotal },
-        ];
+        await db.query(
+            `
+            INSERT INTO manager_z_report_log (
+                generated_at,
+                business_day_start,
+                business_day_end,
+                total_sales,
+                tax_amount,
+                sales_count,
+                employee_signature
+            ) VALUES (NOW(), $1, $2, $3, $4, $5, $6)
+            `,
+            [businessStart, businessEnd, salesTotal, taxAmount, salesCount, employeeSignature]
+        );
+
+        await db.query(
+            `
+            UPDATE manager_report_state
+            SET business_day_start = $1, last_z_report_date = $2
+            WHERE singleton_id = 1
+            `,
+            [businessEnd, todayStr]
+        );
+
+        await db.query('COMMIT');
+
+        const paymentMethods = [{ methodName: 'Unspecified', totalAmount: salesTotal }];
 
         res.json({
-            startAt: dayStart.toISOString(),
-            endAt: now.toISOString(),
+            startAt: businessStart.toISOString(),
+            endAt: businessEnd.toISOString(),
             salesTotal,
             taxAmount,
             salesCount,
@@ -270,6 +448,11 @@ router.post('/reports/z-report', async (req, res) => {
             paymentMethods,
         });
     } catch (err) {
+        try {
+            await db.query('ROLLBACK');
+        } catch {
+            // ignore rollback failures
+        }
         res.status(500).json({ error: err.message });
     }
 });

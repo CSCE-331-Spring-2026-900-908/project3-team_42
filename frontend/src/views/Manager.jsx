@@ -367,7 +367,7 @@ export default function Manager() {
                   <>
                     <h3 className="text-xl font-semibold mb-2 text-gray-800">Product Usage</h3>
                     <p className="text-gray-500 mb-4">
-                      See how many units each menu item contributed over a date range.
+                      Inventory consumed by sold products over the selected date range.
                     </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
@@ -500,7 +500,7 @@ export default function Manager() {
               <p className="text-gray-600">No usage data found for the selected date range.</p>
             ) : (
               <div className="space-y-4">
-                <p className="text-gray-700 font-medium">Units used by menu item (from `order_items`).</p>
+                <p className="text-gray-700 font-medium">Units consumed from inventory (via `ProductInventory` + `TransactionItem`).</p>
                 <LineChartCategory
                   data={(modal.data.points || []).map((p) => ({ label: p.itemName, value: p.usedQuantity }))}
                 />
