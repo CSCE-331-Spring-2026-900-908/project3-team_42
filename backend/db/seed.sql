@@ -30,3 +30,14 @@ INSERT INTO menu_items (name, description, category, default_price, image_url) V
 ('Mango Green Tea', 'Refreshing jasmine green tea with mango syrup.', 'Fruit Tea', 4.75, '/images/mango_green_tea.png'),
 ('Strawberry Slush', 'Ice blended with real strawberries over green tea.', 'Slush', 5.50, '/images/strawberry_slush.png'),
 ('Brown Sugar Boba', 'Fresh milk with warm brown sugar glaze and boba.', 'Specialty', 5.75, '/images/brown_sugar_boba.png');
+
+-- Sample sales history (orders + line items) for demo / reporting
+INSERT INTO orders (cashier_id, total_amount, status) VALUES
+(2, 14.50, 'completed'),
+(3, 10.25, 'completed');
+
+INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time) VALUES
+(1, 1, 1, '{"ice": "50%", "sugar": "100%", "toppings": ["boba"]}'::jsonb, 4.50),
+(1, 2, 2, '{"ice": "50%", "sugar": "70%"}'::jsonb, 5.00),
+(2, 3, 1, '{"ice": "100%", "sugar": "50%"}'::jsonb, 4.75),
+(2, 4, 1, NULL, 5.50);
