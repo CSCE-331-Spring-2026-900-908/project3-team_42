@@ -362,10 +362,10 @@ router.post('/reports/z-report', async (req, res) => {
         const lastZDate = state.last_z_report_date ? new Date(state.last_z_report_date) : null;
         const todayStr = new Date().toISOString().slice(0, 10);
 
-        if (lastZDate && lastZDate.toISOString().slice(0, 10) === todayStr) {
-            await db.query('ROLLBACK');
-            return res.status(400).json({ error: 'Z-report already generated today.' });
-        }
+        const alreadyGeneratedToday =
+            lastZDate && lastZDate.toISOString().slice(0, 10) === todayStr;
+        // Failsafe: allow rerunning the Z-report even if it was already generated today,
+        // but DO NOT advance/reset the business day start again (prevents breaking report windows).
 
         const businessEnd = new Date();
 
@@ -420,14 +420,16 @@ router.post('/reports/z-report', async (req, res) => {
             [businessStart, businessEnd, salesTotal, taxAmount, salesCount, employeeSignature]
         );
 
-        await db.query(
-            `
-            UPDATE manager_report_state
-            SET business_day_start = $1, last_z_report_date = $2
-            WHERE singleton_id = 1
-            `,
-            [businessEnd, todayStr]
-        );
+        if (!alreadyGeneratedToday) {
+            await db.query(
+                `
+                UPDATE manager_report_state
+                SET business_day_start = $1, last_z_report_date = $2
+                WHERE singleton_id = 1
+                `,
+                [businessEnd, todayStr]
+            );
+        }
 
         await db.query('COMMIT');
 
