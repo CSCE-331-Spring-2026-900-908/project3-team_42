@@ -3,6 +3,23 @@ const router = express.Router();
 const db = require('../db/config');
 const { GoogleGenAI } = require('@google/genai');
 
+const TAX_RATE = 0.0825;
+
+function parseISODateParam(dateStr) {
+    // Expects YYYY-MM-DD from the frontend.
+    const [y, m, d] = String(dateStr).split('-').map((x) => Number(x));
+    const dt = new Date(y, m - 1, d);
+    dt.setHours(0, 0, 0, 0);
+    return dt;
+}
+
+function endExclusiveFromInclusiveDate(dateStr) {
+    const start = parseISODateParam(dateStr);
+    const endExclusive = new Date(start);
+    endExclusive.setDate(endExclusive.getDate() + 1);
+    return endExclusive;
+}
+
 // Get all menu items
 router.get('/menu', async (req, res) => {
     try {
@@ -58,6 +75,201 @@ router.post('/orders', async (req, res) => {
         res.status(201).json({ id: orderId, message: 'Order created successfully' });
     } catch (err) {
         await db.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ----------------------------
+// Manager report endpoints
+// ----------------------------
+
+// X-Report: hourly sales (mid-day snapshot)
+router.get('/reports/x', async (req, res) => {
+    try {
+        const now = new Date();
+        const dayStart = new Date(now);
+        dayStart.setHours(0, 0, 0, 0);
+
+        const hourlySql = `
+            SELECT
+                EXTRACT(HOUR FROM created_at) AS hr,
+                COUNT(*) AS sales_count,
+                COALESCE(SUM(total_amount), 0) AS sales_total
+            FROM orders
+            WHERE created_at >= $1 AND created_at < $2
+            GROUP BY hr
+            ORDER BY hr
+        `;
+
+        const totalsSql = `
+            SELECT
+                COUNT(*) AS sales_count,
+                COALESCE(SUM(total_amount), 0) AS sales_total
+            FROM orders
+            WHERE created_at >= $1 AND created_at < $2
+        `;
+
+        const hourlyRows = await db.query(hourlySql, [dayStart, now]);
+        const totalsRows = await db.query(totalsSql, [dayStart, now]);
+        const totals = totalsRows.rows[0] || { sales_count: 0, sales_total: 0 };
+
+        const salesCount = Number(totals.sales_count || 0);
+        const salesTotal = Number(totals.sales_total || 0);
+
+        const byHour = new Map((hourlyRows.rows || []).map((r) => [Number(r.hr), r]));
+
+        const hours = [];
+        for (let hr = 0; hr < 24; hr++) {
+            const row = byHour.get(hr);
+            const amount = row ? Number(row.sales_total || 0) : 0;
+            hours.push({
+                hourBucket: `${String(hr).padStart(2, '0')}:00`,
+                salesAmount: amount,
+            });
+        }
+
+        const summary = `Business Day Start: ${dayStart.toISOString()} | Sales: ${salesCount} | Revenue: $${salesTotal.toFixed(2)} | Returns/Voids/Discards: 0/0/0`;
+        const paymentMethodSummary = `Payment Methods: UNKNOWN=${salesCount} (no payment breakdown stored)`;
+
+        res.json({ hours, summary, paymentMethodSummary });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Product usage: aggregate units sold per menu item over a date range
+router.get('/reports/product-usage', async (req, res) => {
+    try {
+        const { from, to } = req.query;
+        if (!from || !to) return res.status(400).json({ error: 'Missing from/to (YYYY-MM-DD)' });
+
+        const start = parseISODateParam(from);
+        const endExclusive = endExclusiveFromInclusiveDate(to);
+
+        const sql = `
+            SELECT
+                mi.name AS item_name,
+                COALESCE(SUM(oi.quantity), 0) AS used_qty
+            FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id
+            JOIN menu_items mi ON mi.id = oi.menu_item_id
+            WHERE o.created_at >= $1 AND o.created_at < $2
+            GROUP BY mi.id, mi.name
+            ORDER BY used_qty DESC, mi.name
+        `;
+
+        const rows = await db.query(sql, [start, endExclusive]);
+        const points = (rows.rows || []).map((r) => ({
+            itemName: r.item_name,
+            usedQuantity: Number(r.used_qty || 0),
+        }));
+
+        res.json({ points, from, to });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Sales by item: units sold and revenue per menu item over a date range
+router.get('/reports/sales-by-item', async (req, res) => {
+    try {
+        const { from, to } = req.query;
+        if (!from || !to) return res.status(400).json({ error: 'Missing from/to (YYYY-MM-DD)' });
+
+        const start = parseISODateParam(from);
+        const endExclusive = endExclusiveFromInclusiveDate(to);
+
+        const sql = `
+            SELECT
+                mi.name AS item_name,
+                COALESCE(SUM(oi.quantity), 0) AS qty_sold,
+                COALESCE(SUM(oi.quantity * oi.price_at_time), 0) AS revenue
+            FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id
+            JOIN menu_items mi ON mi.id = oi.menu_item_id
+            WHERE o.created_at >= $1 AND o.created_at < $2
+            GROUP BY mi.id, mi.name
+            ORDER BY revenue DESC, mi.name
+        `;
+
+        const rows = await db.query(sql, [start, endExclusive]);
+        const items = (rows.rows || []).map((r) => ({
+            itemName: r.item_name,
+            quantitySold: Number(r.qty_sold || 0),
+            revenue: Number(r.revenue || 0),
+        }));
+
+        res.json({ items, from, to });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Z-Report: end-of-day summary + top item
+router.post('/reports/z-report', async (req, res) => {
+    try {
+        const { signature } = req.body || {};
+        const employeeSignature = String(signature || '').trim() || 'Manager';
+
+        const now = new Date();
+        const dayStart = new Date(now);
+        dayStart.setHours(0, 0, 0, 0);
+
+        const totalsSql = `
+            SELECT
+                COUNT(*) AS sales_count,
+                COALESCE(SUM(total_amount), 0) AS sales_total
+            FROM orders
+            WHERE created_at >= $1 AND created_at < $2
+        `;
+
+        const topItemSql = `
+            SELECT
+                mi.name AS item_name,
+                COALESCE(SUM(oi.quantity), 0) AS units
+            FROM order_items oi
+            JOIN orders o ON o.id = oi.order_id
+            JOIN menu_items mi ON mi.id = oi.menu_item_id
+            WHERE o.created_at >= $1 AND o.created_at < $2
+            GROUP BY mi.id, mi.name
+            ORDER BY units DESC, mi.name
+            LIMIT 1
+        `;
+
+        const totalsRows = await db.query(totalsSql, [dayStart, now]);
+        const totals = totalsRows.rows[0] || { sales_count: 0, sales_total: 0 };
+
+        const salesCount = Number(totals.sales_count || 0);
+        const salesTotal = Number(totals.sales_total || 0);
+
+        const taxAmount = salesTotal * TAX_RATE;
+        const totalCash = salesTotal;
+        const discounts = 0;
+        const voids = 0;
+        const serviceCharges = 0;
+
+        const topRows = await db.query(topItemSql, [dayStart, now]);
+        const topItem = topRows.rows[0]?.item_name || 'N/A';
+
+        const paymentMethods = [
+            { methodName: 'Unspecified', totalAmount: salesTotal },
+        ];
+
+        res.json({
+            startAt: dayStart.toISOString(),
+            endAt: now.toISOString(),
+            salesTotal,
+            taxAmount,
+            salesCount,
+            totalCash,
+            discounts,
+            voids,
+            serviceCharges,
+            topItem,
+            employeeSignature,
+            paymentMethods,
+        });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
