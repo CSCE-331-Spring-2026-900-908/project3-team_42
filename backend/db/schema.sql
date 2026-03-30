@@ -41,24 +41,6 @@ CREATE TABLE menu_items (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE orders (
-    id SERIAL PRIMARY KEY,
-    cashier_id INT REFERENCES users(id),
-    transaction_id INT REFERENCES "Transaction"(TransactionID) ON DELETE SET NULL,
-    total_amount DECIMAL(10,2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'completed', 'cancelled'
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE order_items (
-    id SERIAL PRIMARY KEY,
-    order_id INT REFERENCES orders(id) ON DELETE CASCADE,
-    menu_item_id INT REFERENCES menu_items(id),
-    quantity INT DEFAULT 1,
-    customization JSONB, -- e.g. {"ice": "50%", "sugar": "70%", "toppings": ["boba", "lychee jelly"]}
-    price_at_time DECIMAL(10,2) NOT NULL
-);
-
 -- ----------------------------
 -- Project 2-compatible reporting model
 -- ----------------------------
@@ -102,4 +84,26 @@ CREATE TABLE manager_z_report_log (
     tax_amount DECIMAL(10,2) NOT NULL,
     sales_count INT NOT NULL,
     employee_signature VARCHAR(100)
+);
+
+-- ----------------------------
+-- Orders (app transactional model)
+-- ----------------------------
+-- Defined after "Transaction" to satisfy the FK reference during schema init.
+CREATE TABLE orders (
+    id SERIAL PRIMARY KEY,
+    cashier_id INT REFERENCES users(id),
+    transaction_id INT REFERENCES "Transaction"(TransactionID) ON DELETE SET NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'completed', 'cancelled'
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE order_items (
+    id SERIAL PRIMARY KEY,
+    order_id INT REFERENCES orders(id) ON DELETE CASCADE,
+    menu_item_id INT REFERENCES menu_items(id),
+    quantity INT DEFAULT 1,
+    customization JSONB, -- e.g. {"ice": "50%", "sugar": "70%", "toppings": ["boba", "lychee jelly"]}
+    price_at_time DECIMAL(10,2) NOT NULL
 );
