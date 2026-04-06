@@ -3,6 +3,7 @@ import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import api from '../api';
 import Modal from '../components/manager/Modal';
+import VoiceDictationButton from '../components/VoiceDictationButton';
 import {
   DonutChart,
   HorizontalBarChart,
@@ -182,7 +183,8 @@ export default function Manager() {
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-6">
-        <h1 className="text-4xl font-extrabold text-blue-900">Manager Access</h1>
+        <a href="#main-content" className="skip-link">Skip to main content</a>
+        <h1 id="main-content" className="text-4xl font-extrabold text-blue-900">Manager Access</h1>
         <p className="text-gray-600 text-lg">Please authenticate with an authorized Google account.</p>
         <div className="bg-white p-8 rounded shadow-lg border-2 border-blue-100 flex justify-center">
           <GoogleLogin
@@ -198,6 +200,7 @@ export default function Manager() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <header className="bg-teal-900 text-white w-full p-4 shadow-md flex justify-between items-center px-8">
         <h1 className="text-2xl font-bold">Manager Dashboard</h1>
         <div className="flex items-center space-x-6">
@@ -214,14 +217,15 @@ export default function Manager() {
         </div>
       </header>
 
-      <main className="p-8 w-full max-w-7xl">
-        <div className="flex space-x-4 mb-6 border-b pb-4" role="tablist" aria-label="Manager sections">
+      <main id="main-content" className="p-8 w-full max-w-7xl">
+        <div className="flex flex-wrap gap-2 mb-6 border-b pb-4" role="tablist" aria-label="Manager sections">
           <button
             type="button"
             role="tab"
             aria-selected={activeTab === 'reports'}
+            aria-controls="tab-panel-main"
             onClick={() => setActiveTab('reports')}
-            className={`px-6 py-2 shadow-sm font-bold rounded border ${
+            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
               activeTab === 'reports'
                 ? 'bg-teal-700 text-white border-teal-700'
                 : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
@@ -233,8 +237,9 @@ export default function Manager() {
             type="button"
             role="tab"
             aria-selected={activeTab === 'inventory'}
+            aria-controls="tab-panel-main"
             onClick={() => setActiveTab('inventory')}
-            className={`px-6 py-2 shadow-sm font-bold rounded border ${
+            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
               activeTab === 'inventory'
                 ? 'bg-teal-700 text-white border-teal-700'
                 : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
@@ -246,8 +251,9 @@ export default function Manager() {
             type="button"
             role="tab"
             aria-selected={activeTab === 'menu'}
+            aria-controls="tab-panel-main"
             onClick={() => setActiveTab('menu')}
-            className={`px-6 py-2 shadow-sm font-bold rounded border ${
+            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
               activeTab === 'menu'
                 ? 'bg-teal-700 text-white border-teal-700'
                 : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
@@ -257,7 +263,7 @@ export default function Manager() {
           </button>
         </div>
 
-        <div className="bg-white p-8 rounded shadow min-h-[500px] border border-gray-200">
+        <div id="tab-panel-main" role="tabpanel" className="bg-white p-8 rounded shadow min-h-[500px] border border-gray-200">
           {activeTab === 'inventory' && (
             <>
               <h2 className="text-2xl font-semibold mb-6 text-gray-800">Inventory Overview</h2>
@@ -323,13 +329,14 @@ export default function Manager() {
                 Product usage, X-report hourly sales, Z-report end-of-day summary, and sales-by-item.
               </p>
 
-              <div className="flex space-x-2 mb-6 border-b pb-4" role="tablist" aria-label="Report types">
+              <div className="flex flex-wrap gap-2 mb-6 border-b pb-4" role="tablist" aria-label="Report types">
                 <button
                   type="button"
                   role="tab"
                   aria-selected={reportTab === 'productUsage'}
+                  aria-controls="report-panel"
                   onClick={() => setReportTab('productUsage')}
-                  className={`px-4 py-2 shadow-sm font-bold rounded ${
+                  className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'productUsage' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
                 >
@@ -339,8 +346,9 @@ export default function Manager() {
                   type="button"
                   role="tab"
                   aria-selected={reportTab === 'xReport'}
+                  aria-controls="report-panel"
                   onClick={() => setReportTab('xReport')}
-                  className={`px-4 py-2 shadow-sm font-bold rounded ${
+                  className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'xReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
                 >
@@ -350,8 +358,9 @@ export default function Manager() {
                   type="button"
                   role="tab"
                   aria-selected={reportTab === 'zReport'}
+                  aria-controls="report-panel"
                   onClick={() => setReportTab('zReport')}
-                  className={`px-4 py-2 shadow-sm font-bold rounded ${
+                  className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'zReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
                 >
@@ -361,8 +370,9 @@ export default function Manager() {
                   type="button"
                   role="tab"
                   aria-selected={reportTab === 'salesReport'}
+                  aria-controls="report-panel"
                   onClick={() => setReportTab('salesReport')}
-                  className={`px-4 py-2 shadow-sm font-bold rounded ${
+                  className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'salesReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
                 >
@@ -370,7 +380,7 @@ export default function Manager() {
                 </button>
               </div>
 
-              <div className="bg-white border border-gray-200 rounded-xl p-6">
+              <div id="report-panel" role="tabpanel" className="bg-white border border-gray-200 rounded-xl p-6">
                 {feedback && (
                   <p className={`mb-4 font-medium ${feedback.includes('No') ? 'text-amber-700' : 'text-teal-800'}`}>
                     {feedback}
@@ -386,8 +396,9 @@ export default function Manager() {
 
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">From</label>
+                        <label htmlFor="pu-from" className="block text-sm font-semibold text-gray-700 mb-1">From</label>
                         <input
+                          id="pu-from"
                           type="date"
                           value={rangeFrom}
                           onChange={(e) => setRangeFrom(e.target.value)}
@@ -395,8 +406,9 @@ export default function Manager() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">To</label>
+                        <label htmlFor="pu-to" className="block text-sm font-semibold text-gray-700 mb-1">To</label>
                         <input
+                          id="pu-to"
                           type="date"
                           value={rangeTo}
                           onChange={(e) => setRangeTo(e.target.value)}
@@ -439,14 +451,21 @@ export default function Manager() {
 
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                       <div className="w-full sm:w-[280px]">
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Signature</label>
-                        <input
-                          type="text"
-                          value={signature}
-                          onChange={(e) => setSignature(e.target.value)}
-                          placeholder="Your name or initials"
-                          className="rounded-lg border border-stone-200 px-3 py-2 text-sm w-full"
-                        />
+                        <label htmlFor="z-signature" className="block text-sm font-semibold text-gray-700 mb-1">Signature</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            id="z-signature"
+                            type="text"
+                            value={signature}
+                            onChange={(e) => setSignature(e.target.value)}
+                            placeholder="Your name or initials"
+                            className="rounded-lg border border-stone-200 px-3 py-2 text-sm flex-1"
+                          />
+                          <VoiceDictationButton
+                            onTranscript={(text) => setSignature((prev) => prev + text)}
+                            size="sm"
+                          />
+                        </div>
                       </div>
                       <button
                         type="button"
@@ -468,8 +487,9 @@ export default function Manager() {
 
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">From</label>
+                        <label htmlFor="sr-from" className="block text-sm font-semibold text-gray-700 mb-1">From</label>
                         <input
+                          id="sr-from"
                           type="date"
                           value={rangeFrom}
                           onChange={(e) => setRangeFrom(e.target.value)}
@@ -477,8 +497,9 @@ export default function Manager() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">To</label>
+                        <label htmlFor="sr-to" className="block text-sm font-semibold text-gray-700 mb-1">To</label>
                         <input
+                          id="sr-to"
                           type="date"
                           value={rangeTo}
                           onChange={(e) => setRangeTo(e.target.value)}

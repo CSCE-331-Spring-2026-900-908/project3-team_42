@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../api';
+import VoiceDictationButton from '../components/VoiceDictationButton';
 
 const KIOSK_CASHIER_ID = 3;
 
@@ -15,6 +16,7 @@ export default function CustomerKiosk() {
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const chatEndRef = useRef(null);
+  const chatPanelRef = useRef(null);
 
   const [copy, setCopy] = useState({
     welcome: 'Welcome to Reveille Boba',
@@ -37,6 +39,43 @@ export default function CustomerKiosk() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatLog, isChatting]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape' && chatOpen) setChatOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [chatOpen]);
+
+  const getChatFocusable = useCallback(() => {
+    if (!chatPanelRef.current) return [];
+    return Array.from(
+      chatPanelRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    const trap = (e) => {
+      if (e.key !== 'Tab') return;
+      const els = getChatFocusable();
+      if (els.length === 0) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', trap);
+    return () => window.removeEventListener('keydown', trap);
+  }, [chatOpen, getChatFocusable]);
 
   const byCategory = useMemo(() => {
     const map = new Map();
@@ -192,6 +231,7 @@ export default function CustomerKiosk() {
 
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-violet-50 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)]">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-violet-200/40 to-transparent"
         aria-hidden="true"
@@ -233,7 +273,7 @@ export default function CustomerKiosk() {
         </div>
       </header>
 
-      <main className={`relative z-10 mx-auto max-w-6xl px-5 py-10 sm:px-10 ${mainPad}`}>
+      <main id="main-content" className={`relative z-10 mx-auto max-w-6xl px-5 py-10 sm:px-10 ${mainPad}`}>
         <div className="space-y-14">
           {[...byCategory.entries()].map(([category, items]) => (
             <section key={category}>
@@ -290,6 +330,8 @@ export default function CustomerKiosk() {
 
       {cartOpen && (
         <div
+          id="cart-region"
+          tabIndex={-1}
           className="fixed bottom-[120px] left-0 right-0 z-30 max-h-[200px] overflow-y-auto border-t border-violet-200/80 bg-white/90 px-5 py-4 shadow-[0_-12px_40px_-16px_rgba(91,33,182,0.25)] backdrop-blur-md sm:bottom-[112px]"
           aria-label={copy.yourOrder}
         >
@@ -316,7 +358,7 @@ export default function CustomerKiosk() {
                     <button
                       type="button"
                       onClick={() => decrementLine(line.unique_id)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
+                      className="flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
                       aria-label={language === 'es' ? 'Menos' : 'Decrease'}
                     >
                       −
@@ -325,7 +367,7 @@ export default function CustomerKiosk() {
                     <button
                       type="button"
                       onClick={() => addToCart(line)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
+                      className="flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
                       aria-label={language === 'es' ? 'Más' : 'Increase'}
                     >
                       +
@@ -334,7 +376,7 @@ export default function CustomerKiosk() {
                   <button
                     type="button"
                     onClick={() => removeLine(line.unique_id)}
-                    className="rounded-lg p-2 text-stone-400 hover:bg-red-50 hover:text-red-600"
+                    className="flex h-12 w-12 items-center justify-center rounded-lg text-stone-400 hover:bg-red-50 hover:text-red-600"
                     aria-label={language === 'es' ? 'Eliminar' : 'Remove'}
                   >
                     <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -368,6 +410,7 @@ export default function CustomerKiosk() {
       </div>
 
       <div
+        ref={chatPanelRef}
         className={`fixed bottom-28 right-6 z-50 w-[min(100vw-2rem,420px)] origin-bottom-right transition sm:bottom-32 sm:right-10 ${
           chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
         }`}
@@ -378,7 +421,7 @@ export default function CustomerKiosk() {
             <button
               type="button"
               onClick={() => setChatOpen(false)}
-              className="rounded-lg p-2 text-white/80 hover:bg-white/10 hover:text-white"
+              className="flex h-12 w-12 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
               aria-label="Close assistant"
             >
               ✕
@@ -405,18 +448,23 @@ export default function CustomerKiosk() {
             )}
             <div ref={chatEndRef} />
           </div>
-          <form onSubmit={handleChatSubmit} className="flex gap-2 border-t border-violet-100 bg-white p-3">
+          <form onSubmit={handleChatSubmit} className="flex items-center gap-2 border-t border-violet-100 bg-white p-3">
+            <VoiceDictationButton
+              lang={language === 'es' ? 'es-ES' : 'en-US'}
+              onTranscript={(text) => setChatInput((prev) => prev + text)}
+              size="sm"
+            />
             <input
               type="text"
               value={chatInput}
               onChange={(e) => setChatInput(e.target.value)}
               className="min-h-[48px] flex-1 rounded-2xl border border-violet-100 bg-stone-50 px-4 text-base outline-none focus:ring-2 focus:ring-violet-400"
-              placeholder={language === 'es' ? 'Pregunta sobre el menú…' : 'Ask about the menu…'}
+              placeholder={language === 'es' ? 'Habla o escribe tu pregunta…' : 'Speak or type your question…'}
             />
             <button
               type="submit"
               disabled={isChatting}
-              className="rounded-2xl bg-violet-600 px-5 font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
+              className="min-h-[48px] rounded-2xl bg-violet-600 px-5 font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
             >
               {language === 'es' ? 'Enviar' : 'Send'}
             </button>
@@ -431,6 +479,7 @@ export default function CustomerKiosk() {
             <p className="font-display text-4xl font-bold tabular-nums text-violet-950 sm:text-5xl">${cartTotal.toFixed(2)}</p>
           </div>
           <button
+            id="checkout-btn"
             type="button"
             onClick={handleCheckout}
             disabled={cart.length === 0 || checkoutLoading}

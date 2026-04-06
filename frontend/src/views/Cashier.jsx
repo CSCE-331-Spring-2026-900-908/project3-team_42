@@ -77,7 +77,8 @@ export default function Cashier() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f0fdfa] font-[family-name:var(--font-ui)] lg:flex-row">
-      <div className="flex min-h-0 flex-1 flex-col lg:min-h-screen">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
+      <div id="main-content" className="flex min-h-0 flex-1 flex-col lg:min-h-screen">
         <header className="sticky top-0 z-20 border-b border-teal-200/80 bg-[#f0fdfa]/90 px-6 py-5 backdrop-blur-md">
           <div className="mx-auto flex max-w-[1600px] flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
@@ -118,6 +119,7 @@ export default function Cashier() {
                       key={item.id}
                       type="button"
                       onClick={() => addToCart(item)}
+                      aria-label={`Add ${item.name} to cart — $${parseFloat(item.default_price).toFixed(2)}`}
                       className="group flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-teal-100 bg-white p-5 text-center shadow-sm ring-teal-400/0 transition hover:border-teal-300 hover:shadow-md hover:ring-2 hover:ring-teal-400/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:scale-[0.98]"
                     >
                       <span className="text-lg font-bold leading-snug text-stone-800 group-hover:text-teal-900">
@@ -126,7 +128,7 @@ export default function Cashier() {
                       <span className="mt-3 rounded-full bg-teal-50 px-4 py-1 text-base font-semibold tabular-nums text-teal-800">
                         ${parseFloat(item.default_price).toFixed(2)}
                       </span>
-                      <span className="mt-2 text-xs font-medium text-teal-600/80 opacity-0 transition group-hover:opacity-100">
+                      <span className="mt-2 text-xs font-medium text-teal-600/80">
                         Tap again for +1
                       </span>
                     </button>
@@ -138,7 +140,7 @@ export default function Cashier() {
         </div>
       </div>
 
-      <aside className="flex max-h-[55vh] w-full shrink-0 flex-col border-t border-teal-200/90 bg-white shadow-[0_-8px_32px_-12px_rgba(15,118,110,0.2)] lg:max-h-none lg:max-w-md lg:border-l lg:border-t-0 lg:shadow-[-8px_0_32px_-12px_rgba(15,118,110,0.25)]">
+      <aside id="cart-region" tabIndex={-1} className="flex max-h-[55vh] w-full shrink-0 flex-col border-t border-teal-200/90 bg-white shadow-[0_-8px_32px_-12px_rgba(15,118,110,0.2)] lg:max-h-none lg:max-w-md lg:border-l lg:border-t-0 lg:shadow-[-8px_0_32px_-12px_rgba(15,118,110,0.25)]">
         <div className="flex items-center justify-between bg-gradient-to-r from-teal-800 to-teal-700 px-6 py-5 text-white">
           <div>
             <p className="text-xs font-medium uppercase tracking-wider text-teal-100/90">Current order</p>
@@ -181,7 +183,7 @@ export default function Cashier() {
                 <button
                   type="button"
                   onClick={() => decrementLine(item.unique_id)}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-stone-600 transition hover:bg-white hover:text-teal-800"
+                  className="flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-stone-600 transition hover:bg-white hover:text-teal-800"
                   aria-label="Decrease quantity"
                 >
                   −
@@ -192,7 +194,7 @@ export default function Cashier() {
                 <button
                   type="button"
                   onClick={() => addToCart(item)}
-                  className="flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-stone-600 transition hover:bg-white hover:text-teal-800"
+                  className="flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-stone-600 transition hover:bg-white hover:text-teal-800"
                   aria-label="Increase quantity"
                 >
                   +
@@ -201,7 +203,7 @@ export default function Cashier() {
               <button
                 type="button"
                 onClick={() => removeLine(item.unique_id)}
-                className="rounded-lg p-2 text-stone-400 transition hover:bg-red-50 hover:text-red-600"
+                className="flex h-12 w-12 items-center justify-center rounded-lg text-stone-400 transition hover:bg-red-50 hover:text-red-600"
                 aria-label="Remove line"
               >
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -218,6 +220,7 @@ export default function Cashier() {
             <span className="font-display text-4xl font-bold tabular-nums text-teal-900">${total.toFixed(2)}</span>
           </div>
           <button
+            id="checkout-btn"
             type="button"
             onClick={handleCheckout}
             disabled={cart.length === 0}

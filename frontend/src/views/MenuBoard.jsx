@@ -20,9 +20,10 @@ export default function MenuBoard() {
 
   return (
     <div className="min-h-screen bg-black text-white p-8 flex flex-col font-sans">
-      <header className="flex justify-between items-end border-b-4 border-orange-500 pb-4 mb-12">
-        <h1 className="text-7xl font-black text-orange-400 tracking-tight">Our Menu</h1>
-        <div className="text-3xl font-bold flex items-center bg-gray-900 p-4 rounded-2xl text-blue-300 shadow-xl border border-gray-700">
+      <a href="#main-content" className="skip-link">Skip to main content</a>
+      <header className="flex flex-col gap-4 border-b-4 border-orange-500 pb-4 mb-12 lg:flex-row lg:justify-between lg:items-end">
+        <h1 className="text-5xl font-black text-orange-400 tracking-tight lg:text-7xl">Our Menu</h1>
+        <div className="text-xl font-bold flex flex-wrap items-center bg-gray-900 p-4 rounded-2xl text-blue-300 shadow-xl border border-gray-700 lg:text-3xl">
           {weather ? (
             <>
               <img src={weather.icon} alt={weather.shortForecast} className="w-16 h-16 mr-4 rounded-full border-2 border-gray-600" />
@@ -40,7 +41,7 @@ export default function MenuBoard() {
           )}
         </div>
       </header>
-      <main className="flex-1 grid grid-cols-2 gap-16 px-4">
+      <main id="main-content" className="flex-1 grid grid-cols-1 gap-16 px-4 lg:grid-cols-2">
         <div className="space-y-8 bg-gray-900 bg-opacity-50 p-8 rounded-3xl border border-gray-800 shadow-2xl">
           <h2 className="text-6xl font-extrabold text-yellow-300 border-b-2 border-gray-600 pb-4 mb-8">Milk Teas & Specials</h2>
           <div className="space-y-6">
