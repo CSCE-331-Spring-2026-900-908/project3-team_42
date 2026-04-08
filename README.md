@@ -46,6 +46,8 @@ cd backend
 node db/init.js
 ```
 
+`db/init.js` now mirrors Project 2's flow: it generates CSV seed files in `backend/db/seed-data/` and then loads them through SQL (`schema.sql` + `seed.sql` via `psql \copy`) so report data comes from generated files rather than hardcoded SQL inserts.
+
 ### 2. Backend
 
 ```bash
