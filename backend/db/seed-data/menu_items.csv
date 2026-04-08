@@ -1,0 +1,6 @@
+id,name,description,category,default_price,image_url,is_available
+1,Classic Milk Tea,Traditional black milk tea with boba.,Milk Tea,4.5,/images/classic_milk_tea.png,true
+2,Taro Milk Tea,Creamy taro root blended with milk tea.,Milk Tea,5,/images/taro_milk_tea.png,true
+3,Mango Green Tea,Refreshing jasmine green tea with mango syrup.,Fruit Tea,4.75,/images/mango_green_tea.png,true
+4,Strawberry Slush,Ice blended strawberry over green tea.,Slush,5.5,/images/strawberry_slush.png,true
+5,Brown Sugar Boba,Fresh milk with warm brown sugar glaze and boba.,Specialty,5.75,/images/brown_sugar_boba.png,true
