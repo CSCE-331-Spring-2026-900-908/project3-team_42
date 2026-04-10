@@ -6,8 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:generate-seed": "node db/generateSeedData.js",
-    "db:init": "node db/init.js",
-    "db:fake": "node db/generateFakeData.js"
+    "db:init": "node db/init.js"
   },
   "keywords": [],
   "author": "",

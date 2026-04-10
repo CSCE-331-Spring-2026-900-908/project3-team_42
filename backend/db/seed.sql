@@ -46,16 +46,7 @@ SELECT
 FROM "Transaction" t
 ORDER BY t.transactionid;
 
-INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time)
-SELECT
-  o.id,
-  ti.productid,
-  ti.quantity,
-  NULL::jsonb,
-  ti.priceatpurchase
-FROM orders o
-JOIN transactionitem ti ON ti.transactionid = o.transaction_id
-ORDER BY o.id, ti.transactionitemid;
+\copy order_items (order_id, menu_item_id, quantity, customization, price_at_time) FROM 'seed-data/order_items.csv' WITH (FORMAT csv, HEADER true);
 
 -- Reflect consumed inventory in starting quantities like Project 2 report behavior.
 UPDATE inventory inv

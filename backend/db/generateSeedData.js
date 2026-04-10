@@ -32,6 +32,21 @@ function pick(arr) {
   return arr[randomInt(0, arr.length - 1)];
 }
 
+function randomCustomizationJson() {
+  const ice = pick(['0%', '25%', '50%', '100%']);
+  const sugar = pick(['0%', '30%', '50%', '70%', '100%']);
+  const toppingsPool = ['boba', 'lychee jelly', 'pudding'];
+  const toppings = [];
+  const n = randomInt(0, 2);
+  for (let i = 0; i < n; i++) {
+    const t = pick(toppingsPool);
+    if (!toppings.includes(t)) toppings.push(t);
+  }
+  const obj = { ice, sugar };
+  if (toppings.length) obj.toppings = toppings;
+  return JSON.stringify(obj);
+}
+
 function isoDateHoursAgo(hoursAgo) {
   const d = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
   return d.toISOString().replace('T', ' ').slice(0, 19);
@@ -86,10 +101,11 @@ function buildProductInventory() {
 function buildTransactions(menuItems, count) {
   const transactions = [];
   const transactionItems = [];
+  const orderItems = [];
   let txItemId = 1;
 
   for (let txId = 1; txId <= count; txId++) {
-    const lines = randomInt(1, 3);
+    const lines = randomInt(1, 4);
     const chosen = [];
     let total = 0;
 
@@ -104,6 +120,14 @@ function buildTransactions(menuItems, count) {
         Quantity: qty,
         PriceAtPurchase: product.default_price.toFixed(2),
       });
+
+      orderItems.push({
+        order_id: txId,
+        menu_item_id: product.id,
+        quantity: qty,
+        customization: randomInt(1, 100) <= 80 ? randomCustomizationJson() : '',
+        price_at_time: product.default_price.toFixed(2),
+      });
     }
 
     transactions.push({
@@ -114,7 +138,7 @@ function buildTransactions(menuItems, count) {
     transactionItems.push(...chosen);
   }
 
-  return { transactions, transactionItems };
+  return { transactions, transactionItems, orderItems };
 }
 
 function main() {
@@ -124,7 +148,8 @@ function main() {
   const inventory = buildInventory();
   const menuItems = buildMenuItems();
   const productInventory = buildProductInventory();
-  const { transactions, transactionItems } = buildTransactions(menuItems, 60);
+  const txCount = randomInt(40, 70);
+  const { transactions, transactionItems, orderItems } = buildTransactions(menuItems, txCount);
 
   writeCsv('users.csv', ['id', 'name', 'role', 'email'], users);
   writeCsv('inventory.csv', ['id', 'name', 'category', 'quantity', 'unit', 'restock_threshold'], inventory);
@@ -132,8 +157,9 @@ function main() {
   writeCsv('product_inventory.csv', ['ProductID', 'InventoryID'], productInventory);
   writeCsv('transactions.csv', ['TransactionID', 'TransactionTimestamp', 'TotalAmount'], transactions);
   writeCsv('transaction_items.csv', ['TransactionItemID', 'TransactionID', 'ProductID', 'Quantity', 'PriceAtPurchase'], transactionItems);
+  writeCsv('order_items.csv', ['order_id', 'menu_item_id', 'quantity', 'customization', 'price_at_time'], orderItems);
 
-  console.log(`Generated seed CSV files in ${OUT_DIR}`);
+  console.log(`Generated seed CSV files in ${OUT_DIR} (transactions: ${txCount})`);
 }
 
 main();
