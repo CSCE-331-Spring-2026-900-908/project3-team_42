@@ -7,24 +7,16 @@ const KIOSK_CASHIER_ID = 3;
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
-export default function CustomerKiosk() {
-  const [sessionUser, setSessionUser] = useState(null);
-  const [sessionLoading, setSessionLoading] = useState(true);
+function firstNameFromUser(user) {
+  if (!user) return '';
+  const n = (user.name || '').trim();
+  if (n) return n.split(/\s+/)[0];
+  const local = (user.email || '').split('@')[0];
+  return local || '';
+}
 
-  const [menuItems, setMenuItems] = useState([]);
-  const [cart, setCart] = useState([]);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [language, setLanguage] = useState('en');
-  const [isTranslating, setIsTranslating] = useState(false);
-
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatLog, setChatLog] = useState([]);
-  const [chatInput, setChatInput] = useState('');
-  const [isChatting, setIsChatting] = useState(false);
-  const chatEndRef = useRef(null);
-  const chatPanelRef = useRef(null);
-
-  const [copy, setCopy] = useState({
+function defaultKioskCopy() {
+  return {
     welcome: 'Welcome to Reveille Boba',
     translateBtn: 'Translate to Spanish',
     addToOrder: 'Add to order',
@@ -40,7 +32,34 @@ export default function CustomerKiosk() {
     signInHint: 'Use your Google account for a secure, personalized kiosk session.',
     signOut: 'Sign out',
     signedInAs: 'Signed in',
-  });
+    orderSuccessTitle: "You're all set!",
+    orderSuccessLead: 'Your order was placed successfully.',
+    orderSuccessThankYou: 'Thank you',
+    orderSuccessOrderLabel: 'Order number',
+    orderSuccessCta: 'Start new order',
+  };
+}
+
+export default function CustomerKiosk() {
+  const [sessionUser, setSessionUser] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
+  const [menuItems, setMenuItems] = useState([]);
+  const [cart, setCart] = useState([]);
+  const [orderSuccess, setOrderSuccess] = useState(null);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const orderSuccessCtaRef = useRef(null);
+  const [language, setLanguage] = useState('en');
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatLog, setChatLog] = useState([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatting, setIsChatting] = useState(false);
+  const chatEndRef = useRef(null);
+  const chatPanelRef = useRef(null);
+
+  const [copy, setCopy] = useState(() => defaultKioskCopy());
 
   useEffect(() => {
     const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
@@ -66,6 +85,25 @@ export default function CustomerKiosk() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatLog, isChatting]);
+
+  useEffect(() => {
+    if (!orderSuccess) return;
+    orderSuccessCtaRef.current?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOrderSuccess(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [orderSuccess]);
+
+  useEffect(() => {
+    if (!orderSuccess) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [orderSuccess]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -140,24 +178,9 @@ export default function CustomerKiosk() {
     setSessionUser(null);
     setCart([]);
     setMenuItems([]);
+    setOrderSuccess(null);
     setLanguage('en');
-    setCopy({
-      welcome: 'Welcome to Reveille Boba',
-      translateBtn: 'Translate to Spanish',
-      addToOrder: 'Add to order',
-      total: 'Total',
-      checkout: 'Pay now',
-      yourOrder: 'Your order',
-      stepBrowse: 'Browse',
-      stepReview: 'Review',
-      stepPay: 'Pay',
-      emptyCart: 'Tap a drink to start your order',
-      assistantHint: 'Ask about flavors, ice, or toppings',
-      signInTitle: 'Sign in to order',
-      signInHint: 'Use your Google account for a secure, personalized kiosk session.',
-      signOut: 'Sign out',
-      signedInAs: 'Signed in',
-    });
+    setCopy(defaultKioskCopy());
   };
 
   const handleTranslateToggle = async () => {
@@ -178,6 +201,11 @@ export default function CustomerKiosk() {
           'stepPay',
           'emptyCart',
           'assistantHint',
+          'orderSuccessTitle',
+          'orderSuccessLead',
+          'orderSuccessThankYou',
+          'orderSuccessOrderLabel',
+          'orderSuccessCta',
         ];
         const translated = await Promise.all(keys.map((k) => translateText(copy[k], 'es')));
         const nextCopy = keys.reduce((acc, k, i) => ({ ...acc, [k]: translated[i] }), {});
@@ -197,19 +225,7 @@ export default function CustomerKiosk() {
     } else {
       const res = await api.get('/menu');
       setMenuItems(res.data);
-      setCopy({
-        welcome: 'Welcome to Reveille Boba',
-        translateBtn: 'Translate to Spanish',
-        addToOrder: 'Add to order',
-        total: 'Total',
-        checkout: 'Pay now',
-        yourOrder: 'Your order',
-        stepBrowse: 'Browse',
-        stepReview: 'Review',
-        stepPay: 'Pay',
-        emptyCart: 'Tap a drink to start your order',
-        assistantHint: 'Ask about flavors, ice, or toppings',
-      });
+      setCopy(defaultKioskCopy());
     }
 
     setLanguage(targetLang);
@@ -281,7 +297,7 @@ export default function CustomerKiosk() {
         items: formattedItems,
         placed_via: 'customer_kiosk',
       });
-      alert(`${res.data.message} (Order #${res.data.id})`);
+      setOrderSuccess({ orderId: res.data.id });
       setCart([]);
     } catch (err) {
       alert(language === 'es' ? 'No se pudo completar el pago.' : 'Checkout failed. Please try again.');
@@ -630,6 +646,57 @@ export default function CustomerKiosk() {
           </button>
         </div>
       </footer>
+
+      {orderSuccess && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-violet-950/55 px-5 py-10 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="order-success-title"
+          aria-describedby="order-success-desc"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setOrderSuccess(null);
+          }}
+        >
+          <div
+            className="w-full max-w-md rounded-3xl border border-violet-200 bg-white p-8 shadow-2xl shadow-violet-900/25"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-3xl text-white shadow-lg shadow-emerald-500/30" aria-hidden="true">
+              ✓
+            </div>
+            <h2 id="order-success-title" className="text-center font-display text-2xl font-bold text-violet-950 sm:text-3xl">
+              {copy.orderSuccessTitle}
+            </h2>
+            <p id="order-success-desc" className="mt-3 text-center text-base text-stone-600">
+              {copy.orderSuccessLead}
+            </p>
+            <p className="mt-4 text-center font-display text-lg font-semibold text-violet-900">
+              {copy.orderSuccessThankYou}
+              {firstNameFromUser(sessionUser) ? `, ${firstNameFromUser(sessionUser)}!` : '!'}
+            </p>
+            <p className="mt-6 text-center">
+              <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
+                {copy.orderSuccessOrderLabel}
+              </span>
+              <span className="mt-1 block font-display text-3xl font-bold tabular-nums text-violet-950">
+                #{orderSuccess.orderId}
+              </span>
+            </p>
+            <button
+              ref={orderSuccessCtaRef}
+              type="button"
+              onClick={() => setOrderSuccess(null)}
+              className="mt-8 w-full min-h-[52px] rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 py-3 text-lg font-bold text-white shadow-lg shadow-violet-600/30 transition hover:from-violet-500 hover:to-fuchsia-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
+            >
+              {copy.orderSuccessCta}
+            </button>
+            <p className="mt-3 text-center text-xs text-stone-500">
+              {language === 'es' ? 'Toca fuera o pulsa Escape para cerrar.' : 'Tap outside or press Escape to close.'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
