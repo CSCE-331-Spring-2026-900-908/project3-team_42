@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db/config');
 const { GoogleGenAI } = require('@google/genai');
+const { tryGetCustomerIdFromAuthHeader } = require('../lib/customerSession');
 
 const TAX_RATE = 0.0825;
 
@@ -53,13 +54,22 @@ router.get('/employees', async (req, res) => {
 
 // Create an order
 router.post('/orders', async (req, res) => {
-    const { cashier_id, total_amount, items } = req.body;
+    const { cashier_id, total_amount, items, placed_via } = req.body;
+    let customerAccountId = null;
+
+    if (placed_via === 'customer_kiosk') {
+        customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
+        if (customerAccountId == null) {
+            return res.status(401).json({ error: 'Customer login required' });
+        }
+    }
+
     try {
         await db.query('BEGIN');
 
         const orderResult = await db.query(
-            "INSERT INTO orders (cashier_id, total_amount, status) VALUES ($1, $2, 'completed') RETURNING id",
-            [cashier_id, total_amount]
+            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status) VALUES ($1, $2, $3, 'completed') RETURNING id",
+            [cashier_id, customerAccountId, total_amount]
         );
         const orderId = orderResult.rows[0].id;
 

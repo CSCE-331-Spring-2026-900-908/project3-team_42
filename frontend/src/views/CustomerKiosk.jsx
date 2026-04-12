@@ -1,10 +1,16 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import api from '../api';
+import { GoogleLogin } from '@react-oauth/google';
+import api, { CUSTOMER_SESSION_STORAGE_KEY } from '../api';
 import VoiceDictationButton from '../components/VoiceDictationButton';
 
 const KIOSK_CASHIER_ID = 3;
 
+const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
 export default function CustomerKiosk() {
+  const [sessionUser, setSessionUser] = useState(null);
+  const [sessionLoading, setSessionLoading] = useState(true);
+
   const [menuItems, setMenuItems] = useState([]);
   const [cart, setCart] = useState([]);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
@@ -30,11 +36,32 @@ export default function CustomerKiosk() {
     stepPay: 'Pay',
     emptyCart: 'Tap a drink to start your order',
     assistantHint: 'Ask about flavors, ice, or toppings',
+    signInTitle: 'Sign in to order',
+    signInHint: 'Use your Google account for a secure, personalized kiosk session.',
+    signOut: 'Sign out',
+    signedInAs: 'Signed in',
   });
 
   useEffect(() => {
-    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
+    if (!token) {
+      setSessionLoading(false);
+      return;
+    }
+    api
+      .get('/auth/me')
+      .then((res) => setSessionUser(res.data.user))
+      .catch(() => {
+        localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+        setSessionUser(null);
+      })
+      .finally(() => setSessionLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!sessionUser) return;
+    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+  }, [sessionUser]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -95,6 +122,42 @@ export default function CustomerKiosk() {
     } catch {
       return text;
     }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const res = await api.post('/auth/google', { credential: credentialResponse.credential });
+      localStorage.setItem(CUSTOMER_SESSION_STORAGE_KEY, res.data.token);
+      setSessionUser(res.data.user);
+    } catch (err) {
+      console.error(err);
+      alert('Sign-in failed. Please try again.');
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+    setSessionUser(null);
+    setCart([]);
+    setMenuItems([]);
+    setLanguage('en');
+    setCopy({
+      welcome: 'Welcome to Reveille Boba',
+      translateBtn: 'Translate to Spanish',
+      addToOrder: 'Add to order',
+      total: 'Total',
+      checkout: 'Pay now',
+      yourOrder: 'Your order',
+      stepBrowse: 'Browse',
+      stepReview: 'Review',
+      stepPay: 'Pay',
+      emptyCart: 'Tap a drink to start your order',
+      assistantHint: 'Ask about flavors, ice, or toppings',
+      signInTitle: 'Sign in to order',
+      signInHint: 'Use your Google account for a secure, personalized kiosk session.',
+      signOut: 'Sign out',
+      signedInAs: 'Signed in',
+    });
   };
 
   const handleTranslateToggle = async () => {
@@ -216,6 +279,7 @@ export default function CustomerKiosk() {
         cashier_id: KIOSK_CASHIER_ID,
         total_amount,
         items: formattedItems,
+        placed_via: 'customer_kiosk',
       });
       alert(`${res.data.message} (Order #${res.data.id})`);
       setCart([]);
@@ -229,6 +293,54 @@ export default function CustomerKiosk() {
   const cartOpen = cart.length > 0;
   const mainPad = cartOpen ? 'pb-[340px] sm:pb-[300px]' : 'pb-36';
 
+  if (sessionLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-violet-50 to-white font-[family-name:var(--font-ui)]">
+        <p className="text-lg font-semibold text-violet-800" role="status">
+          Loading…
+        </p>
+      </div>
+    );
+  }
+
+  if (!googleClientId) {
+    return (
+      <div className="min-h-screen bg-stone-100 px-5 py-16 font-[family-name:var(--font-ui)]">
+        <main className="mx-auto max-w-lg rounded-2xl border border-amber-200 bg-amber-50 p-8 text-amber-950 shadow-sm">
+          <h1 className="font-display text-xl font-bold">Customer kiosk is not configured</h1>
+          <p className="mt-3 text-sm leading-relaxed">
+            Set <code className="rounded bg-white px-1.5 py-0.5 text-xs">VITE_GOOGLE_CLIENT_ID</code> in{' '}
+            <code className="rounded bg-white px-1.5 py-0.5 text-xs">frontend/.env.local</code> (same Web client ID as
+            the backend <code className="rounded bg-white px-1.5 py-0.5 text-xs">GOOGLE_CLIENT_ID</code>). Restart the
+            Vite dev server after changing env files.
+          </p>
+        </main>
+      </div>
+    );
+  }
+
+  if (!sessionUser) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-violet-100/80 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)] px-5 py-16">
+        <main className="mx-auto flex max-w-lg flex-col items-center rounded-3xl border border-violet-200/80 bg-white/90 p-10 shadow-xl shadow-violet-900/10 backdrop-blur-md">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Customer kiosk</p>
+          <h1 className="mt-3 text-center font-display text-3xl font-bold text-violet-950">{copy.signInTitle}</h1>
+          <p className="mt-4 text-center text-stone-600">{copy.signInHint}</p>
+          <div className="mt-10 flex justify-center">
+            <GoogleLogin
+              onSuccess={handleGoogleSuccess}
+              onError={() => alert('Google sign-in was cancelled or failed.')}
+              text="signin_with"
+              shape="pill"
+              size="large"
+              theme="filled_blue"
+            />
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-violet-50 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)]">
       <a href="#main-content" className="skip-link">Skip to main content</a>
@@ -239,7 +351,7 @@ export default function CustomerKiosk() {
 
       <header className="relative z-20 border-b border-violet-100/80 bg-white/75 px-5 py-6 backdrop-blur-md sm:px-10">
         <div className="mx-auto flex max-w-6xl flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div>
+          <div className="min-w-0 flex-1">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Self-service</p>
             <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-violet-950 sm:text-4xl">
               {copy.welcome}
@@ -262,14 +374,42 @@ export default function CustomerKiosk() {
               ))}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={handleTranslateToggle}
-            disabled={isTranslating}
-            className="self-start rounded-2xl border-2 border-violet-200 bg-white px-6 py-3 text-base font-semibold text-violet-900 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-50 lg:self-center"
-          >
-            {isTranslating ? '…' : copy.translateBtn}
-          </button>
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50/80 px-3 py-2 sm:max-w-xs">
+              {sessionUser.pictureUrl ? (
+                <img
+                  src={sessionUser.pictureUrl}
+                  alt=""
+                  className="h-10 w-10 shrink-0 rounded-full border border-violet-200 object-cover"
+                />
+              ) : (
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-200 text-sm font-bold text-violet-800">
+                  {(sessionUser.name || sessionUser.email || '?').slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-violet-700">{copy.signedInAs}</p>
+                <p className="truncate text-sm font-semibold text-violet-950" title={sessionUser.email}>
+                  {sessionUser.name || sessionUser.email}
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-50"
+            >
+              {copy.signOut}
+            </button>
+            <button
+              type="button"
+              onClick={handleTranslateToggle}
+              disabled={isTranslating}
+              className="rounded-2xl border-2 border-violet-200 bg-white px-6 py-3 text-base font-semibold text-violet-900 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-50"
+            >
+              {isTranslating ? '…' : copy.translateBtn}
+            </button>
+          </div>
         </div>
       </header>
 
