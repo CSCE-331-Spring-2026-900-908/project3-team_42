@@ -6,7 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "db:init": "node db/init.js",
-    "db:fake": "node db/generateFakeData.js"
+    "db:fake": "node db/generateFakeData.js",
+    "train:rec": "node trainRecModel.js"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +18,8 @@
     "cors": "^2.8.6",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
+    "ml-matrix": "^6.12.1",
+    "ml-random-forest": "^2.1.0",
     "pg": "^8.20.0"
   }
 }
