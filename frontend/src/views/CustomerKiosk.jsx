@@ -61,6 +61,7 @@ export default function CustomerKiosk() {
   const orderSuccessCtaRef = useRef(null);
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
+  const [weather, setWeather] = useState(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLog, setChatLog] = useState([]);
@@ -91,6 +92,7 @@ export default function CustomerKiosk() {
   useEffect(() => {
     if (!sessionUser) return;
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
   }, [sessionUser]);
 
   useEffect(() => {
@@ -162,6 +164,32 @@ export default function CustomerKiosk() {
     if (selectedCategory === 'All') return menuItems;
     return menuItems.filter(item => (item.category || 'Specialty') === selectedCategory);
   }, [menuItems, selectedCategory]);
+
+  const weatherRecommendations = useMemo(() => {
+    if (!weather || menuItems.length === 0) return [];
+    const temp = weather.temperature;
+    const forecast = (weather.shortForecast || '').toLowerCase();
+    let recommended = [];
+    if (temp >= 80) {
+      recommended = menuItems.filter(i => {
+        const cat = (i.category || '').toLowerCase();
+        const name = (i.name || '').toLowerCase();
+        return cat === 'slush' || cat === 'fruit tea' || name.includes('mango') || name.includes('lemon') || name.includes('passion') || name.includes('ice');
+      });
+    } else if (temp <= 55 || forecast.includes('rain') || forecast.includes('cloud')) {
+      recommended = menuItems.filter(i => {
+        const cat = (i.category || '').toLowerCase();
+        const name = (i.name || '').toLowerCase();
+        return cat === 'milk tea' || name.includes('taro') || name.includes('hokkaido') || name.includes('thai') || name.includes('coffee');
+      });
+    } else {
+      recommended = menuItems.filter(i => {
+        const cat = (i.category || '').toLowerCase();
+        return cat === 'specialty' || cat === 'matcha';
+      });
+    }
+    return recommended.slice(0, 4);
+  }, [weather, menuItems]);
 
   const translateText = async (text, target) => {
     if (target === 'en') return text;
@@ -379,6 +407,14 @@ export default function CustomerKiosk() {
   const cartOpen = cart.length > 0;
   const mainPad = cartOpen ? 'pb-[340px] sm:pb-[300px]' : 'pb-36';
 
+  const weatherLabel = useMemo(() => {
+    if (!weather) return null;
+    const temp = weather.temperature;
+    if (temp >= 80) return { emoji: '☀️', text: 'Hot outside — cool down with these!', bg: 'bg-amber-50 border-amber-200 text-amber-800' };
+    if (temp <= 55) return { emoji: '🌧️', text: 'Chilly today — warm up with these!', bg: 'bg-sky-50 border-sky-200 text-sky-800' };
+    return { emoji: '🌤️', text: 'Nice day — try something special!', bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
+  }, [weather]);
+
   if (sessionLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-violet-50 to-white font-[family-name:var(--font-ui)]">
@@ -425,73 +461,95 @@ export default function CustomerKiosk() {
     );
   }
 
+
   return (
-    <div className="flex h-screen flex-row bg-[#f8fafc] font-sans overflow-hidden text-slate-800">
+    <div className="flex h-screen flex-row bg-[#faf9f7] font-sans overflow-hidden text-stone-800">
       
       {/* Main Left Menu Section */}
-      <div className="flex flex-1 flex-col p-4 pr-6 relative z-10">
-        <header className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-1 flex-col px-6 pt-5 pb-0 relative z-10">
+        {/* Top Bar */}
+        <header className="mb-5 flex items-center justify-between">
           <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">{copy.welcome}</h2>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {categories.map(cat => (
-                <button
-                  key={cat}
-                  onClick={() => setSelectedCategory(cat)}
-                  className={`rounded-full px-5 py-2 text-sm font-semibold transition ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
+            <h2 className="text-3xl font-extrabold text-stone-900 tracking-tight">{copy.welcome}</h2>
+            <p className="text-sm text-stone-500 mt-0.5">{language === 'es' ? 'Elige tu bebida favorita' : 'Pick your favorite drink'}</p>
           </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-              {sessionUser.pictureUrl ? (
-                <img src={sessionUser.pictureUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-cover" />
-              ) : (
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-800">
-                  {(sessionUser.name || sessionUser.email || '?').slice(0, 1).toUpperCase()}
-                </span>
-              )}
-              <div className="min-w-0 pr-2">
-                <p className="text-xs font-medium text-slate-500">{copy.signedInAs}</p>
-                <p className="truncate text-sm font-semibold text-slate-900" title={sessionUser.email}>
-                  {sessionUser.name || sessionUser.email}
-                </p>
-              </div>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-bold text-stone-700">
+                {(sessionUser.name || sessionUser.email || '?').slice(0, 1).toUpperCase()}
+              </span>
+              <span className="text-sm font-medium text-stone-700 pr-1">{firstNameFromUser(sessionUser)}</span>
             </div>
-            <button type="button" onClick={handleLogout} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
+            <button type="button" onClick={handleLogout} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50">
               {sessionUser.isGuest ? copy.endSession : copy.signOut}
             </button>
-            <button type="button" onClick={handleTranslateToggle} disabled={isTranslating} className="rounded-2xl border-2 border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50">
-              {isTranslating ? '…' : copy.translateBtn}
+            <button type="button" onClick={handleTranslateToggle} disabled={isTranslating} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-50">
+              {isTranslating ? '…' : (language === 'es' ? '🇺🇸 English' : '🇲🇽 Español')}
             </button>
           </div>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto pb-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 shrink-0">
+        {/* Weather Recommendation Banner */}
+        {weatherLabel && weatherRecommendations.length > 0 && (
+          <div className={`mb-4 rounded-2xl border p-4 ${weatherLabel.bg}`}>
+            <div className="flex items-center gap-2 mb-3">
+              <span className="text-xl">{weatherLabel.emoji}</span>
+              <span className="font-bold text-sm">{weatherLabel.text}</span>
+              {weather && <span className="ml-auto text-xs font-medium opacity-70">{weather.temperature}°{weather.unit}</span>}
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {weatherRecommendations.map(item => (
+                <button
+                  key={`rec-${item.id}`}
+                  onClick={() => handleDrinkClick(item)}
+                  className="flex shrink-0 items-center gap-3 rounded-xl border border-white/60 bg-white/80 px-4 py-3 text-left transition hover:bg-white hover:shadow-sm active:scale-95"
+                >
+                  <span className="text-2xl">🧋</span>
+                  <div>
+                    <p className="text-sm font-bold leading-tight text-stone-800">{item.name}</p>
+                    <p className="text-xs font-medium text-stone-500">${parseFloat(item.default_price).toFixed(2)}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Category Tabs */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          {categories.map(cat => (
+            <button
+              key={cat}
+              onClick={() => setSelectedCategory(cat)}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${selectedCategory === cat ? 'bg-stone-800 text-white' : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'}`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+
+        {/* Drink Grid */}
+        <div className="min-h-0 flex-1 overflow-y-auto pb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {displayedItems.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => handleDrinkClick(item)}
-                className="flex flex-col items-center justify-start min-h-[160px] overflow-hidden rounded-xl border border-slate-200 bg-white text-center transition hover:border-[#93c5fd] hover:shadow-md active:scale-95"
+                className="group flex flex-col items-center justify-start rounded-2xl border border-stone-200 bg-white text-center transition hover:border-stone-300 hover:shadow-md active:scale-[0.97]"
               >
-                <div className="w-full aspect-video bg-slate-100 flex items-center justify-center">
+                <div className="w-full aspect-[4/3] rounded-t-2xl bg-stone-100 flex items-center justify-center overflow-hidden">
                   {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
+                    <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-105" />
                   ) : (
-                    <span className="text-4xl opacity-40">🧋</span>
+                    <span className="text-5xl opacity-30">🧋</span>
                   )}
                 </div>
-                <div className="p-3 w-full flex flex-col items-center flex-1">
-                  <span className="text-[14px] font-bold leading-tight text-slate-800 line-clamp-2">
+                <div className="p-4 w-full flex flex-col items-center flex-1">
+                  <span className="text-[15px] font-bold leading-snug text-stone-800 line-clamp-2">
                     {item.name}
                   </span>
-                  <span className="mt-auto pt-1 text-sm font-medium text-slate-500">
+                  <span className="mt-auto pt-2 text-base font-semibold text-stone-500">
                     ${parseFloat(item.default_price).toFixed(2)}
                   </span>
                 </div>
@@ -502,41 +560,41 @@ export default function CustomerKiosk() {
       </div>
 
       {/* Right Sidebar Cart Section */}
-      <aside className="w-[380px] flex shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl relative z-20">
-        <div className="border-b border-slate-100 p-6 flex justify-between items-center">
-          <h2 className="text-xl font-bold text-slate-900">{copy.yourOrder}</h2>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+      <aside className="w-[360px] flex shrink-0 flex-col border-l border-stone-200 bg-white relative z-20">
+        <div className="border-b border-stone-100 px-6 py-5 flex justify-between items-center">
+          <h2 className="text-lg font-bold text-stone-900">{copy.yourOrder}</h2>
+          <span className="rounded-full bg-stone-100 px-3 py-1 text-xs font-bold text-stone-500">
             {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </span>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 relative">
+        <div className="flex-1 overflow-y-auto px-5 py-4 relative">
           {cart.length === 0 ? (
-            <div className="flex h-full items-center justify-center flex-col -mt-10 opacity-70">
-              <span className="text-4xl mb-4">🛒</span>
-              <p className="font-medium text-slate-500">{copy.emptyCart}</p>
+            <div className="flex h-full items-center justify-center flex-col -mt-10 opacity-60">
+              <span className="text-5xl mb-4">🧋</span>
+              <p className="font-medium text-stone-400 text-center text-sm">{copy.emptyCart}</p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3">
               {cart.map((item) => (
-                <div key={item.unique_id} className="flex flex-col rounded-xl border border-slate-100 bg-slate-50 p-3">
-                  <div className="flex justify-between items-start font-bold text-slate-800 text-[14px]">
+                <div key={item.unique_id} className="flex flex-col rounded-xl border border-stone-100 bg-stone-50 p-3">
+                  <div className="flex justify-between items-start font-bold text-stone-800 text-[14px]">
                     <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
                     <span>${(item.custom_price ?? parseFloat(item.default_price)).toFixed(2)}</span>
                   </div>
                   {item.customization && (
-                    <div className="text-xs text-slate-500 mt-1 leading-relaxed">
+                    <div className="text-xs text-stone-400 mt-1 leading-relaxed">
                       S: {item.customization.sweetness} | I: {item.customization.ice}
                       {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
                     </div>
                   )}
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-lg font-bold text-slate-600 shadow-sm hover:bg-slate-100">−</button>
-                      <span className="font-bold tabular-nums text-slate-800">{item.quantity}</span>
-                      <button onClick={() => addToCart(item)} className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-lg font-bold text-slate-600 shadow-sm hover:bg-slate-100">+</button>
+                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">−</button>
+                      <span className="font-bold tabular-nums text-stone-800">{item.quantity}</span>
+                      <button onClick={() => addToCart(item)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">+</button>
                     </div>
-                    <button onClick={() => removeLine(item.unique_id)} className="text-xs font-bold text-red-400 hover:text-red-500 transition">Remove</button>
+                    <button onClick={() => removeLine(item.unique_id)} className="text-xs font-semibold text-red-400 hover:text-red-500 transition">Remove</button>
                   </div>
                 </div>
               ))}
@@ -544,11 +602,16 @@ export default function CustomerKiosk() {
           )}
         </div>
 
-        <div className="p-6 shrink-0 bg-white">
-          <div className="flex justify-between text-[15px] font-medium text-slate-600 mb-2">
-             <span>{copy.total} (Incl. Tax)</span>
+        <div className="px-5 py-5 shrink-0 border-t border-stone-100">
+          <div className="flex justify-between text-sm font-medium text-stone-500 mb-1">
+             <span>{language === 'es' ? 'Subtotal' : 'Subtotal'}</span>
+             <span>${cartTotal.toFixed(2)}</span>
           </div>
-          <div className="border-t border-slate-200 pt-3 flex justify-between text-3xl font-black text-slate-900">
+          <div className="flex justify-between text-sm font-medium text-stone-500 mb-3">
+             <span>{language === 'es' ? 'Impuesto' : 'Tax (8.25%)'}</span>
+             <span>${(cartTotal * 0.0825).toFixed(2)}</span>
+          </div>
+          <div className="border-t border-stone-200 pt-3 flex justify-between text-2xl font-black text-stone-900">
             <span>{copy.total}</span>
             <span>${(cartTotal * 1.0825).toFixed(2)}</span>
           </div>
@@ -557,7 +620,7 @@ export default function CustomerKiosk() {
             id="checkout-btn"
             onClick={handleCheckout}
             disabled={cart.length === 0 || checkoutLoading}
-            className="w-full mt-6 rounded-2xl bg-[#93c5fd] py-4 text-xl font-bold text-white shadow-sm transition hover:bg-[#60a5fa] disabled:opacity-50 disabled:hover:bg-[#93c5fd]"
+            className="w-full mt-5 rounded-2xl bg-stone-800 py-4 text-lg font-bold text-white transition hover:bg-stone-700 active:scale-[0.98] disabled:opacity-40 disabled:hover:bg-stone-800"
           >
             {checkoutLoading ? '...' : copy.checkout}
           </button>
