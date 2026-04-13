@@ -2,34 +2,99 @@ import { useMemo, useState, useEffect } from 'react';
 import api from '../api';
 
 export default function Cashier() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pinEntry, setPinEntry] = useState('');
+  
   const [menuItems, setMenuItems] = useState([]);
   const [cart, setCart] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
   const cashierId = 2;
 
   useEffect(() => {
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
   }, []);
 
-  const byCategory = useMemo(() => {
-    const map = new Map();
-    for (const item of menuItems) {
-      const cat = item.category || 'Menu';
-      if (!map.has(cat)) map.set(cat, []);
-      map.get(cat).push(item);
-    }
-    return map;
+  const categories = useMemo(() => {
+    const cats = new Set(menuItems.map(item => item.category || 'Specialty'));
+    return ['All', ...cats];
   }, [menuItems]);
 
-  const addToCart = (item) => {
-    setCart((prev) => {
-      const i = prev.findIndex((l) => l.id === item.id);
-      if (i >= 0) {
-        const next = [...prev];
-        next[i] = { ...next[i], quantity: next[i].quantity + 1 };
-        return next;
+  const displayedItems = useMemo(() => {
+    if (selectedCategory === 'All') return menuItems;
+    return menuItems.filter(item => (item.category || 'Specialty') === selectedCategory);
+  }, [menuItems, selectedCategory]);
+
+  const handlePinClick = (val) => {
+    if (val === 'Clear') setPinEntry('');
+    else if (val === 'Del') setPinEntry(prev => prev.slice(0, -1));
+    else if (pinEntry.length < 4) setPinEntry(prev => prev + val);
+  };
+
+  const handleLogin = () => {
+    if (pinEntry === '1234') setIsAuthenticated(true);
+    else {
+      alert("Invalid PIN. Use 1234.");
+      setPinEntry('');
+    }
+  };
+
+  const [customizingItem, setCustomizingItem] = useState(null);
+  const [sweetness, setSweetness] = useState('100');
+  const [ice, setIce] = useState('regular ice');
+  const [toppings, setToppings] = useState([]);
+
+  const TOPPING_OPTIONS = [
+    { id: 'boba', name: 'Boba (+0.50)', price: 0.50 },
+    { id: 'lychee_jelly', name: 'Lychee Jelly (+0.50)', price: 0.50 },
+    { id: 'pudding', name: 'Pudding (+0.50)', price: 0.50 }
+  ];
+
+  const handleDrinkClick = (item) => {
+    setCustomizingItem(item);
+    setSweetness('100');
+    setIce('regular ice');
+    setToppings([]);
+  };
+
+  const toggleTopping = (id) => {
+    setToppings((prev) => 
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
+  };
+
+  const confirmCustomization = () => {
+    const basePrice = parseFloat(customizingItem.default_price);
+    const toppingsPrice = toppings.length * 0.50;
+    const customPrice = basePrice + toppingsPrice;
+    
+    const toppingNames = toppings.map(tid => TOPPING_OPTIONS.find(o => o.id === tid)?.name.split(' ')[0]);
+
+    const customization = {
+      sweetness: `${sweetness}%`,
+      ice: ice,
+      toppings: toppingNames
+    };
+
+    setCart((prev) => [
+      ...prev, 
+      { 
+        ...customizingItem, 
+        unique_id: Date.now(), 
+        quantity: 1, 
+        customization,
+        custom_price: customPrice
       }
-      return [...prev, { ...item, unique_id: Date.now(), quantity: 1, customization: null }];
-    });
+    ]);
+    setCustomizingItem(null);
+  };
+
+  const incrementLine = (unique_id) => {
+    setCart((prev) => prev.map((line) => {
+      if (line.unique_id === unique_id) {
+        return { ...line, quantity: line.quantity + 1 };
+      }
+      return line;
+    }));
   };
 
   const decrementLine = (unique_id) => {
@@ -49,14 +114,14 @@ export default function Cashier() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
-    const total_amount = cart.reduce((sum, item) => sum + parseFloat(item.default_price) * item.quantity, 0);
+    const total_amount = cart.reduce((sum, item) => sum + (item.custom_price ?? parseFloat(item.default_price)) * item.quantity, 0);
 
     try {
       const formattedItems = cart.map((i) => ({
         menu_item_id: i.id,
         quantity: i.quantity,
         customization: i.customization,
-        price: i.default_price,
+        price: i.custom_price ?? i.default_price,
       }));
 
       const res = await api.post('/orders', {
@@ -72,164 +137,258 @@ export default function Cashier() {
     }
   };
 
-  const total = cart.reduce((sum, item) => sum + parseFloat(item.default_price) * item.quantity, 0);
-  const itemCount = cart.reduce((n, item) => n + item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + (item.custom_price ?? parseFloat(item.default_price)) * item.quantity, 0);
+  const tax = subtotal * 0.0825; // 8.25% TX Tax approx
+  const total = subtotal + tax;
+
+  if (!isAuthenticated) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#f3f4f6]">
+        <div className="w-[420px] rounded-[30px] bg-white p-10 shadow-lg">
+          <h1 className="text-[32px] font-bold text-[#111827]">Boba POS Login</h1>
+          <p className="mt-2 text-[18px] text-[#6b7280]">Enter 4-digit PIN (Cashier)</p>
+          
+          <div className="my-8 flex justify-center gap-4">
+            {[0, 1, 2, 3].map(i => (
+              <div 
+                key={i} 
+                className={`h-5 w-5 rounded-full border-2 ${i < pinEntry.length ? 'border-stone-800 bg-stone-800' : 'border-[#9ca3af] bg-transparent'}`}
+              ></div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            {[1,2,3,4,5,6,7,8,9].map(num => (
+              <button 
+                key={num} 
+                onClick={() => handlePinClick(num.toString())}
+                className="h-16 rounded-xl bg-[#f3f4f6] text-[22px] font-medium text-[#111827] transition hover:bg-[#e5e7eb] active:scale-95"
+              >
+                {num}
+              </button>
+            ))}
+            <button 
+              onClick={() => handlePinClick('Clear')}
+              className="h-16 rounded-xl bg-[#f3f4f6] text-[18px] font-medium text-[#111827] transition hover:bg-[#e5e7eb] active:scale-95"
+            >
+              Clear
+            </button>
+            <button 
+              onClick={() => handlePinClick('0')}
+              className="h-16 rounded-xl bg-[#f3f4f6] text-[22px] font-medium text-[#111827] transition hover:bg-[#e5e7eb] active:scale-95"
+            >
+              0
+            </button>
+            <button 
+              onClick={() => handlePinClick('Del')}
+              className="h-16 rounded-xl bg-[#f3f4f6] text-[18px] font-medium text-[#111827] transition hover:bg-[#e5e7eb] active:scale-95"
+            >
+              Del
+            </button>
+          </div>
+
+          <button 
+            onClick={handleLogin}
+            className="w-full h-14 rounded-xl bg-[#93c5fd] text-xl font-bold text-white transition hover:bg-[#60a5fa] active:scale-95"
+          >
+            Continue
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#f0fdfa] font-[family-name:var(--font-ui)] lg:flex-row">
-      <a href="#main-content" className="skip-link">Skip to main content</a>
-      <div id="main-content" className="flex min-h-0 flex-1 flex-col lg:min-h-screen">
-        <header className="sticky top-0 z-20 border-b border-teal-200/80 bg-[#f0fdfa]/90 px-6 py-5 backdrop-blur-md">
-          <div className="mx-auto flex max-w-[1600px] flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Cashier station</p>
-              <h1 className="font-display text-2xl font-bold text-teal-950">Tap drinks · Review cart · Checkout</h1>
-            </div>
-            <ol className="flex gap-4 text-sm text-teal-800/90">
-              <li className="flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-600 text-xs font-bold text-white">
-                  1
-                </span>
-                Add items
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-800">
-                  2
-                </span>
-                Confirm
-              </li>
-              <li className="flex items-center gap-2">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-teal-100 text-xs font-bold text-teal-800">
-                  3
-                </span>
-                Send order
-              </li>
-            </ol>
+    <div className="flex h-screen flex-row bg-[#f8fafc] font-sans overflow-hidden text-slate-800">
+      
+      {/* Main Left Menu Section */}
+      <div className="flex flex-1 flex-col p-4 pr-6">
+        <header className="mb-4">
+          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Menu</h2>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setSelectedCategory(cat)}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+              >
+                {cat}
+              </button>
+            ))}
           </div>
         </header>
 
-        <div className="flex-1 overflow-y-auto px-4 py-8 pb-28 sm:px-8">
-          <div className="mx-auto max-w-[1600px] space-y-10">
-            {[...byCategory.entries()].map(([category, items]) => (
-              <section key={category}>
-                <h2 className="mb-4 font-display text-lg font-semibold text-teal-900">{category}</h2>
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-4">
-                  {items.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => addToCart(item)}
-                      aria-label={`Add ${item.name} to cart — $${parseFloat(item.default_price).toFixed(2)}`}
-                      className="group flex min-h-[140px] flex-col items-center justify-center rounded-2xl border border-teal-100 bg-white p-5 text-center shadow-sm ring-teal-400/0 transition hover:border-teal-300 hover:shadow-md hover:ring-2 hover:ring-teal-400/30 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 active:scale-[0.98]"
-                    >
-                      <span className="text-lg font-bold leading-snug text-stone-800 group-hover:text-teal-900">
-                        {item.name}
-                      </span>
-                      <span className="mt-3 rounded-full bg-teal-50 px-4 py-1 text-base font-semibold tabular-nums text-teal-800">
-                        ${parseFloat(item.default_price).toFixed(2)}
-                      </span>
-                      <span className="mt-2 text-xs font-medium text-teal-600/80">
-                        Tap again for +1
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </section>
+        <div className="min-h-0 flex-1 overflow-y-auto pb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 shrink-0">
+            {displayedItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleDrinkClick(item)}
+                className="flex flex-col items-center justify-center min-h-[130px] rounded-xl border border-slate-200 bg-white p-3 text-center transition hover:border-[#93c5fd] hover:shadow-md active:scale-95"
+              >
+                <span className="text-[15px] font-bold leading-tight text-slate-800">
+                  {item.name}
+                </span>
+                <span className="mt-1.5 text-sm font-medium text-slate-500">
+                  ${parseFloat(item.default_price).toFixed(2)}
+                </span>
+              </button>
             ))}
           </div>
         </div>
       </div>
 
-      <aside id="cart-region" tabIndex={-1} className="flex max-h-[55vh] w-full shrink-0 flex-col border-t border-teal-200/90 bg-white shadow-[0_-8px_32px_-12px_rgba(15,118,110,0.2)] lg:max-h-none lg:max-w-md lg:border-l lg:border-t-0 lg:shadow-[-8px_0_32px_-12px_rgba(15,118,110,0.25)]">
-        <div className="flex items-center justify-between bg-gradient-to-r from-teal-800 to-teal-700 px-6 py-5 text-white">
-          <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-teal-100/90">Current order</p>
-            <p className="font-display text-xl font-bold">Cart</p>
-          </div>
-          <span className="rounded-full bg-white/15 px-3 py-1 text-sm font-bold tabular-nums ring-1 ring-white/20">
-            {itemCount} {itemCount === 1 ? 'drink' : 'drinks'}
-          </span>
+      {/* Right Sidebar Cart Section */}
+      <aside className="w-[420px] flex shrink-0 flex-col border-l border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-100 p-6">
+          <h2 className="text-2xl font-bold text-slate-900">Current Order</h2>
         </div>
 
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-stone-50/80 p-4">
-          {cart.length === 0 && (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-stone-400">
-              <div className="mb-4 rounded-2xl bg-teal-50 p-6 text-teal-300">
-                <svg className="mx-auto h-14 w-14" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                  />
-                </svg>
-              </div>
-              <p className="font-medium text-stone-500">Cart is empty</p>
-              <p className="mt-1 text-sm text-stone-400">Tap menu tiles to add drinks</p>
+        <div className="flex-1 overflow-y-auto p-6 relative">
+          {cart.length === 0 ? (
+            <div className="flex h-full items-center justify-center -mt-10">
+              <p className="font-medium text-slate-400">No items added yet.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {cart.map((item) => (
+                <div key={item.unique_id} className="flex flex-col">
+                  <div className="flex justify-between items-start font-bold text-slate-800 text-[15px]">
+                    <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
+                    <span>${(item.custom_price ?? parseFloat(item.default_price)).toFixed(2)}</span>
+                  </div>
+                  {item.customization && (
+                    <div className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      S: {item.customization.sweetness} | I: {item.customization.ice}
+                      {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">−</button>
+                      <span className="font-bold tabular-nums text-slate-800">{item.quantity}</span>
+                      <button onClick={() => incrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">+</button>
+                    </div>
+                    <button onClick={() => removeLine(item.unique_id)} className="text-sm font-bold text-red-400 hover:text-red-500 transition">Remove</button>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
-          {cart.map((item) => (
-            <div
-              key={item.unique_id}
-              className="flex items-center gap-3 rounded-xl border border-stone-100 bg-white p-4 shadow-sm"
-            >
-              <div className="min-w-0 flex-1">
-                <p className="font-semibold text-stone-800">{item.name}</p>
-                <p className="mt-0.5 text-sm tabular-nums text-teal-700">
-                  ${parseFloat(item.default_price).toFixed(2)} each
-                </p>
-              </div>
-              <div className="flex items-center gap-1 rounded-xl bg-stone-100 p-1">
-                <button
-                  type="button"
-                  onClick={() => decrementLine(item.unique_id)}
-                  className="flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-stone-600 transition hover:bg-white hover:text-teal-800"
-                  aria-label="Decrease quantity"
-                >
-                  −
-                </button>
-                <span className="min-w-[2rem] text-center text-base font-bold tabular-nums text-stone-900">
-                  {item.quantity}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => addToCart(item)}
-                  className="flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-stone-600 transition hover:bg-white hover:text-teal-800"
-                  aria-label="Increase quantity"
-                >
-                  +
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => removeLine(item.unique_id)}
-                className="flex h-12 w-12 items-center justify-center rounded-lg text-stone-400 transition hover:bg-red-50 hover:text-red-600"
-                aria-label="Remove line"
-              >
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
-            </div>
-          ))}
         </div>
 
-        <div className="border-t border-stone-200 bg-white p-6">
-          <div className="mb-5 flex items-end justify-between">
-            <span className="text-sm font-medium uppercase tracking-wide text-stone-500">Total</span>
-            <span className="font-display text-4xl font-bold tabular-nums text-teal-900">${total.toFixed(2)}</span>
+        <div className="p-6 shrink-0 bg-white">
+          <div className="bg-[#f8fafc] rounded-xl border border-slate-100 p-4 mb-6">
+            <p className="text-sm font-bold text-slate-900 mb-2">Rewards Account</p>
+            <button className="w-full py-2 bg-slate-200 hover:bg-[#e2e8f0] rounded border border-slate-300 text-sm font-semibold text-slate-700 transition">
+              + Link Rewards Account
+            </button>
           </div>
+
+          <div className="space-y-3 border-t border-slate-100 pt-5">
+            <div className="flex justify-between text-[15px] font-medium text-slate-600">
+              <span>Subtotal</span>
+              <span>${subtotal.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between text-[15px] font-medium text-slate-600">
+              <span>Tax</span>
+              <span>${tax.toFixed(2)}</span>
+            </div>
+          </div>
+          
+          <div className="mt-4 border-t border-slate-200 pt-4 flex justify-between text-2xl font-black text-slate-900">
+            <span>Total</span>
+            <span>${total.toFixed(2)}</span>
+          </div>
+
           <button
-            id="checkout-btn"
-            type="button"
             onClick={handleCheckout}
             disabled={cart.length === 0}
-            className="w-full rounded-2xl bg-gradient-to-r from-teal-600 to-emerald-600 py-4 text-lg font-bold text-white shadow-lg shadow-teal-900/20 transition hover:from-teal-500 hover:to-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+            className="w-full mt-6 rounded bg-[#94a3b8] py-4 text-xl font-bold text-white transition hover:bg-[#64748b] disabled:opacity-50 disabled:hover:bg-[#94a3b8]"
           >
-            Complete sale
+            Submit Order
           </button>
         </div>
       </aside>
+
+      {/* Customization Modal */}
+      {customizingItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-900">Customize</h2>
+                <p className="font-medium text-slate-500 mt-1.5">{customizingItem.name}</p>
+              </div>
+              <button onClick={() => setCustomizingItem(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Sweetness</h3>
+                <div className="flex flex-wrap gap-2">
+                  {['0', '25', '50', '75', '100'].map(level => (
+                    <button
+                      key={level}
+                      onClick={() => setSweetness(level)}
+                      className={`min-w-[3.5rem] rounded-xl border px-3 py-2 text-sm font-bold transition ${sweetness === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      {level}%
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Ice Level</h3>
+                <div className="flex flex-wrap gap-2">
+                  {['no ice', 'light ice', 'regular ice', 'extra ice'].map(level => (
+                    <button
+                      key={level}
+                      onClick={() => setIce(level)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${ice === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
+                <div className="flex flex-col gap-2">
+                  {TOPPING_OPTIONS.map(topping => (
+                    <label key={topping.id} className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${toppings.includes(topping.id) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                      <span className="font-medium text-slate-800">{topping.name.replace(' (+0.50)', '')}</span>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={toppings.includes(topping.id)}
+                          onChange={() => toggleTopping(topping.id)}
+                          className="h-5 w-5 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
+                        />
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <button
+                onClick={confirmCustomization}
+                className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
+              >
+                Add — <span className="tabular-nums">${(parseFloat(customizingItem.default_price) + toppings.length * 0.50).toFixed(2)}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

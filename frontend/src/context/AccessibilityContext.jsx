@@ -42,8 +42,12 @@ export function AccessibilityProvider({ children }) {
     setPrefs((p) => ({ ...p, highContrast: !p.highContrast }));
   }, []);
 
-  const cycleFontSize = useCallback(() => {
-    setPrefs((p) => ({ ...p, fontSizeIndex: (p.fontSizeIndex + 1) % FONT_STEPS.length }));
+  const increaseFontSize = useCallback(() => {
+    setPrefs((p) => ({ ...p, fontSizeIndex: Math.min(p.fontSizeIndex + 1, FONT_STEPS.length - 1) }));
+  }, []);
+
+  const decreaseFontSize = useCallback(() => {
+    setPrefs((p) => ({ ...p, fontSizeIndex: Math.max(p.fontSizeIndex - 1, 0) }));
   }, []);
 
   const toggleReduceMotion = useCallback(() => {
@@ -58,7 +62,8 @@ export function AccessibilityProvider({ children }) {
     ...prefs,
     fontScale: FONT_STEPS[prefs.fontSizeIndex] ?? 1,
     toggleHighContrast,
-    cycleFontSize,
+    increaseFontSize,
+    decreaseFontSize,
     toggleReduceMotion,
     resetAll,
   };

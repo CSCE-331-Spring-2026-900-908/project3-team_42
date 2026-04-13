@@ -1,0 +1,13 @@
+id,name,category,quantity,unit,restock_threshold
+1,Tapioca Pearls (Boba),Topping,500,oz,100
+2,Black Tea Leaves,Tea Base,200,oz,50
+3,Green Tea Leaves,Tea Base,180,oz,50
+4,Milk Powder,Dairy,300,oz,100
+5,Lychee Jelly,Topping,200,oz,50
+6,Mango Syrup,Syrup,120,pump,20
+7,Taro Powder,Powder,150,oz,40
+8,Brown Sugar Syrup,Syrup,110,pump,20
+9,Strawberry Syrup,Syrup,100,pump,20
+10,Jasmine Tea Leaves,Tea Base,120,oz,30
+11,Cups (Regular),Packaging,1000,count,200
+12,Straws (Large),Packaging,2000,count,300

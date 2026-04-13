@@ -43,7 +43,8 @@ export default function AccessibilityPanel() {
     fontSizeIndex,
     reduceMotion,
     toggleHighContrast,
-    cycleFontSize,
+    increaseFontSize,
+    decreaseFontSize,
     toggleReduceMotion,
     resetAll,
   } = useAccessibility();
@@ -171,7 +172,7 @@ export default function AccessibilityPanel() {
         ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="pointer-events-auto fixed left-6 top-6 z-[1] flex h-14 w-14 items-center justify-center rounded-full border-2 border-stone-400 bg-white text-xl shadow-xl transition hover:bg-violet-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-violet-500"
+        className="pointer-events-auto fixed left-6 bottom-6 z-[1] flex h-14 w-14 items-center justify-center rounded-full border-2 border-stone-400 bg-white text-xl shadow-xl transition hover:bg-violet-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-violet-500"
         aria-label={open ? 'Close accessibility settings' : 'Open accessibility settings'}
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -188,7 +189,7 @@ export default function AccessibilityPanel() {
           role="dialog"
           aria-modal="true"
           aria-label="Accessibility settings"
-          className="pointer-events-auto fixed left-6 top-24 z-[1] max-h-[min(calc(100vh-7rem),560px)] w-[min(92vw,380px)] overflow-y-auto rounded-2xl border-2 border-stone-300 bg-white p-5 shadow-2xl"
+          className="pointer-events-auto fixed left-6 bottom-24 z-[1] max-h-[min(calc(100vh-7rem),560px)] w-[min(92vw,380px)] overflow-y-auto rounded-2xl border-2 border-stone-300 bg-white p-5 shadow-2xl"
         >
           <div className="mb-4 flex items-center justify-between gap-2">
             <h2 id="a11y-panel-title" className="text-lg font-bold text-stone-900">
@@ -212,12 +213,32 @@ export default function AccessibilityPanel() {
               High contrast {highContrast ? 'ON' : 'OFF'}
             </button>
 
-            <button type="button" onClick={cycleFontSize} className={`${btnBase} w-full ${fontSizeIndex > 0 ? btnOn : btnOff}`}>
-              <span aria-hidden="true" className="text-lg font-black">
-                A
-              </span>
-              Text size: {FONT_LABELS[fontSizeIndex]}
-            </button>
+            <div className={`${btnBase} w-full border-stone-300 bg-white justify-between`}>
+              <div className="flex items-center gap-2 text-stone-800">
+                <span aria-hidden="true" className="text-lg font-black">A</span>
+                <span>Text size: {FONT_LABELS[fontSizeIndex]}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <button 
+                  type="button" 
+                  onClick={decreaseFontSize} 
+                  disabled={fontSizeIndex === 0} 
+                  className="flex h-8 w-8 items-center justify-center rounded bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-800 font-bold"
+                  aria-label="Decrease text size"
+                >
+                  -
+                </button>
+                <button 
+                  type="button" 
+                  onClick={increaseFontSize} 
+                  disabled={fontSizeIndex === FONT_LABELS.length - 1} 
+                  className="flex h-8 w-8 items-center justify-center rounded bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-800 font-bold"
+                  aria-label="Increase text size"
+                >
+                  +
+                </button>
+              </div>
+            </div>
 
             <button type="button" onClick={toggleReduceMotion} className={`${btnBase} w-full ${reduceMotion ? btnOn : btnOff}`}>
               <span aria-hidden="true">&#9632;</span>
