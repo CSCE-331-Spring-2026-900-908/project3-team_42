@@ -1,4 +1,4 @@
-import useSpeechRecognition, { speechSupported } from '../hooks/useSpeechRecognition';
+import useSpeechRecognition from '../hooks/useSpeechRecognition';
 
 /**
  * Microphone button for voice dictation (Lea persona).
@@ -8,7 +8,7 @@ import useSpeechRecognition, { speechSupported } from '../hooks/useSpeechRecogni
  * @param {(text: string) => void} props.onTranscript - called with recognized text
  * @param {string} [props.lang='en-US'] - BCP 47 language for recognition
  * @param {string} [props.className] - extra classes on the wrapper
- * @param {string} [props.size='md'] - 'sm' | 'md' — button sizing
+ * @param {string} [props.size='md'] - 'sm' | 'md' - button sizing
  */
 export default function VoiceDictationButton({
   onTranscript,
@@ -26,6 +26,10 @@ export default function VoiceDictationButton({
 
   const dims = size === 'sm' ? 'h-10 w-10' : 'h-12 w-12';
   const iconSize = size === 'sm' ? 'h-4 w-4' : 'h-5 w-5';
+  const buttonLabel = listening ? 'Stop dictation' : 'Start voice dictation';
+  const buttonTitle = listening
+    ? 'Listening... click to stop'
+    : 'Click to dictate with your voice';
 
   return (
     <div className={`relative inline-flex items-center ${className}`}>
@@ -37,16 +41,23 @@ export default function VoiceDictationButton({
             ? 'border-red-500 bg-red-50 text-red-600 animate-pulse'
             : 'border-stone-300 bg-white text-stone-600 hover:bg-stone-50 hover:border-stone-400'
         }`}
-        aria-label={listening ? 'Stop dictation' : 'Start voice dictation'}
+        aria-label={buttonLabel}
         aria-pressed={listening}
-        title={listening ? 'Listening… click to stop' : 'Click to dictate with your voice'}
+        title={buttonTitle}
       >
         {listening ? (
           <svg className={iconSize} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <rect x="6" y="6" width="12" height="12" rx="2" />
           </svg>
         ) : (
-          <svg className={iconSize} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+          <svg
+            className={iconSize}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            aria-hidden="true"
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M19 10v2a7 7 0 01-14 0v-2" />
             <line x1="12" y1="19" x2="12" y2="23" />
@@ -55,7 +66,10 @@ export default function VoiceDictationButton({
         )}
       </button>
       {listening && interim && (
-        <span className="absolute left-full ml-2 whitespace-nowrap rounded-lg bg-stone-800 px-2 py-1 text-xs text-white shadow-lg" aria-live="polite">
+        <span
+          className="absolute left-full ml-2 whitespace-nowrap rounded-lg bg-stone-800 px-2 py-1 text-xs text-white shadow-lg"
+          aria-live="polite"
+        >
           {interim}
         </span>
       )}
