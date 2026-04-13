@@ -17,12 +17,17 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api', apiRoutes);
 
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  if (!process.env.GOOGLE_CLIENT_ID) {
-    console.warn('[auth] GOOGLE_CLIENT_ID is unset — customer kiosk sign-in will fail until it matches VITE_GOOGLE_CLIENT_ID.');
-  }
-  if (!process.env.AUTH_JWT_SECRET) {
-    console.warn('[auth] AUTH_JWT_SECRET is unset — customer sessions cannot be issued or verified.');
-  }
-});
+// Only listen locally, Vercel will automatically manage the exported app function
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    if (!process.env.GOOGLE_CLIENT_ID) {
+      console.warn('[auth] GOOGLE_CLIENT_ID is unset — customer kiosk sign-in will fail until it matches VITE_GOOGLE_CLIENT_ID.');
+    }
+    if (!process.env.AUTH_JWT_SECRET) {
+      console.warn('[auth] AUTH_JWT_SECRET is unset — customer sessions cannot be issued or verified.');
+    }
+  });
+}
+
+module.exports = app;
