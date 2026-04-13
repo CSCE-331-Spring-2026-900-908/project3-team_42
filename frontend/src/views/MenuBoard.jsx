@@ -11,7 +11,10 @@ export default function MenuBoard() {
       .catch(err => console.error("Weather fetch error", err));
 
     api.get('/menu')
-      .then(res => setMenuItems(res.data))
+      .then(res => {
+        if (Array.isArray(res.data)) setMenuItems(res.data);
+        else console.error("Invalid menu response:", res.data);
+      })
       .catch(err => console.error("Menu fetch error", err));
   }, []);
 

@@ -11,7 +11,10 @@ export default function Cashier() {
   const cashierId = 2;
 
   useEffect(() => {
-    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    api.get('/menu').then((res) => {
+      if (Array.isArray(res.data)) setMenuItems(res.data);
+      else console.error("Invalid menu response:", res.data);
+    }).catch(console.error);
   }, []);
 
   const categories = useMemo(() => {
