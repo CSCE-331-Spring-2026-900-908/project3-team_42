@@ -30,7 +30,11 @@ function defaultKioskCopy() {
     assistantHint: 'Ask about flavors, ice, or toppings',
     signInTitle: 'Sign in to order',
     signInHint: 'Use your Google account for a secure, personalized kiosk session.',
+    signInUnavailable: 'Google sign-in is unavailable on this kiosk right now.',
+    continueGuest: 'Continue as guest',
+    guestHint: 'Guest checkout is available. You can still place an order without signing in.',
     signOut: 'Sign out',
+    endSession: 'End session',
     signedInAs: 'Signed in',
     orderSuccessTitle: "You're all set!",
     orderSuccessLead: 'Your order was placed successfully.',
@@ -60,6 +64,7 @@ export default function CustomerKiosk() {
   const chatPanelRef = useRef(null);
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
+  const googleSignInAvailable = Boolean(googleClientId);
 
   useEffect(() => {
     const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
@@ -181,6 +186,13 @@ export default function CustomerKiosk() {
     setOrderSuccess(null);
     setLanguage('en');
     setCopy(defaultKioskCopy());
+  };
+
+  const handleContinueAsGuest = () => {
+    localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+    setSessionUser({ isGuest: true, name: 'Guest' });
+    setCart([]);
+    setOrderSuccess(null);
   };
 
   const handleTranslateToggle = async () => {
@@ -332,22 +344,6 @@ export default function CustomerKiosk() {
     );
   }
 
-  if (!googleClientId) {
-    return (
-      <div className="min-h-screen bg-stone-100 px-5 py-16 font-[family-name:var(--font-ui)]">
-        <main className="mx-auto max-w-lg rounded-2xl border border-amber-200 bg-amber-50 p-8 text-amber-950 shadow-sm">
-          <h1 className="font-display text-xl font-bold">Customer kiosk is not configured</h1>
-          <p className="mt-3 text-sm leading-relaxed">
-            Set <code className="rounded bg-white px-1.5 py-0.5 text-xs">VITE_GOOGLE_CLIENT_ID</code> in{' '}
-            <code className="rounded bg-white px-1.5 py-0.5 text-xs">frontend/.env.local</code> (same Web client ID as
-            the backend <code className="rounded bg-white px-1.5 py-0.5 text-xs">GOOGLE_CLIENT_ID</code>). Restart the
-            Vite dev server after changing env files.
-          </p>
-        </main>
-      </div>
-    );
-  }
-
   if (!sessionUser) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-violet-100/80 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)] px-5 py-16">
@@ -355,15 +351,29 @@ export default function CustomerKiosk() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Customer kiosk</p>
           <h1 className="mt-3 text-center font-display text-3xl font-bold text-violet-950">{copy.signInTitle}</h1>
           <p className="mt-4 text-center text-stone-600">{copy.signInHint}</p>
-          <div className="mt-10 flex justify-center">
-            <GoogleLogin
-              onSuccess={handleGoogleSuccess}
-              onError={() => alert('Google sign-in was cancelled or failed.')}
-              text="signin_with"
-              shape="pill"
-              size="large"
-              theme="filled_blue"
-            />
+          <div className="mt-10 flex flex-col items-center gap-4">
+            {googleSignInAvailable ? (
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => alert('Google sign-in was cancelled or failed.')}
+                text="signin_with"
+                shape="pill"
+                size="large"
+                theme="filled_blue"
+              />
+            ) : (
+              <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">
+                {copy.signInUnavailable}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleContinueAsGuest}
+              className="min-h-[48px] rounded-2xl border border-violet-200 bg-white px-6 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-50"
+            >
+              {copy.continueGuest}
+            </button>
+            <p className="max-w-sm text-center text-xs text-stone-500">{copy.guestHint}</p>
           </div>
         </main>
       </div>
@@ -428,7 +438,7 @@ export default function CustomerKiosk() {
               onClick={handleLogout}
               className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-50"
             >
-              {copy.signOut}
+              {sessionUser.isGuest ? copy.endSession : copy.signOut}
             </button>
             <button
               type="button"
