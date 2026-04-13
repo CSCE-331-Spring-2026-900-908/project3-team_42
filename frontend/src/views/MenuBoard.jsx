@@ -11,62 +11,160 @@ export default function MenuBoard() {
       .catch(err => console.error("Weather fetch error", err));
 
     api.get('/menu')
-      .then(res => setMenuItems(res.data))
+      .then(res => {
+        if (Array.isArray(res.data)) setMenuItems(res.data);
+        else console.error("Invalid menu response:", res.data);
+      })
       .catch(err => console.error("Menu fetch error", err));
   }, []);
 
-  const milkTeas = menuItems.filter(item => item.category === 'Milk Tea' || item.category === 'Specialty');
-  const fruitTeas = menuItems.filter(item => item.category === 'Fruit Tea' || item.category === 'Slush');
+  const numberedItems = menuItems.map((item, index) => ({ ...item, number: index + 1 }));
+
+  const milkTeas = numberedItems.filter(item => item.category === 'Milk Tea');
+  const specialty = numberedItems.filter(item => item.category === 'Specialty');
+  const fruitTeas = numberedItems.filter(item => item.category === 'Fruit Tea');
+  const matcha = numberedItems.filter(item => item.category === 'Matcha');
+  const slushes = numberedItems.filter(item => item.category === 'Slush');
+
+  const ItemRow = ({ item }) => (
+    <div key={item.id} className="flex justify-between items-center py-1.5 border-b border-stone-800/60">
+      <div className="flex items-center gap-3">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] border-stone-500 text-xs font-bold text-stone-300">
+          {item.number}
+        </div>
+        <div className="flex flex-col">
+          <span className="text-lg font-medium tracking-tight text-stone-100">{item.name}</span>
+        </div>
+      </div>
+      <span className="text-lg font-black text-orange-400 tabular-nums">${parseFloat(item.default_price).toFixed(2)}</span>
+    </div>
+  );
 
   return (
-    <div className="min-h-screen bg-black text-white p-8 flex flex-col font-sans">
-      <a href="#main-content" className="skip-link">Skip to main content</a>
-      <header className="flex flex-col gap-4 border-b-4 border-orange-500 pb-4 mb-12 lg:flex-row lg:justify-between lg:items-end">
-        <h1 className="text-5xl font-black text-orange-400 tracking-tight lg:text-7xl">Our Menu</h1>
-        <div className="text-xl font-bold flex flex-wrap items-center bg-gray-900 p-4 rounded-2xl text-blue-300 shadow-xl border border-gray-700 lg:text-3xl">
-          {weather ? (
-            <>
-              <img src={weather.icon} alt={weather.shortForecast} className="w-16 h-16 mr-4 rounded-full border-2 border-gray-600" />
-              <span className="text-5xl">{weather.temperature}°{weather.unit}</span>
-              <div className="flex flex-col ml-4 border-l-2 border-gray-700 pl-4">
-                <span className="text-gray-300 truncate max-w-[250px] text-2xl" title={weather.shortForecast}>{weather.shortForecast}</span>
-                <span className="text-gray-500 text-xl font-medium tracking-wider uppercase">College Station</span>
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="mr-4 text-5xl animate-pulse">🌤️</span> 
-              <span className="text-gray-400">Loading Weather...</span>
-            </>
-          )}
-        </div>
-      </header>
-      <main id="main-content" className="flex-1 grid grid-cols-1 gap-16 px-4 lg:grid-cols-2">
-        <div className="space-y-8 bg-gray-900 bg-opacity-50 p-8 rounded-3xl border border-gray-800 shadow-2xl">
-          <h2 className="text-6xl font-extrabold text-yellow-300 border-b-2 border-gray-600 pb-4 mb-8">Milk Teas & Specials</h2>
-          <div className="space-y-6">
-            {milkTeas.map(item => (
-              <div key={item.id} className="flex justify-between items-center text-4xl border-b border-gray-800 pb-3 border-dashed">
-                <div className="flex flex-col">
-                  <span className="font-semibold text-gray-100">{item.name}</span>
-                </div>
-                <span className="font-bold text-gray-300 text-3xl px-4 py-2 bg-gray-800 rounded-lg">${parseFloat(item.default_price).toFixed(2)}</span>
-              </div>
-            ))}
+    <div className="flex h-screen flex-col overflow-hidden bg-black font-sans text-stone-100">
+      <a href="#main-content" className="sr-only focus:not-sr-only">Skip to main content</a>
+      
+      {/* Header section */}
+      <header className="flex shrink-0 items-center justify-between border-b-2 border-stone-800 bg-[#0a0a0a] px-8 py-3">
+        <h1 className="text-4xl font-black uppercase tracking-tighter text-teal-500">
+          OUR MENU<span className="text-lg text-stone-500 ml-1">®</span>
+        </h1>
+        {weather && (
+          <div className="flex items-center gap-4 rounded-xl border border-stone-800 bg-stone-900 px-4 py-2 text-sm font-bold shadow-2xl">
+            <img src={weather.icon} alt={weather.shortForecast} className="w-8 h-8 rounded-full border border-stone-700" />
+            <span className="text-xl text-orange-200">{weather.temperature}°{weather.unit}</span>
+            <div className="h-8 w-[1px] bg-stone-700"></div>
+            <div className="flex flex-col">
+              <span className="text-stone-300 text-sm">{weather.shortForecast}</span>
+              <span className="text-[9px] tracking-widest text-stone-500 uppercase">College Station</span>
+            </div>
           </div>
-        </div>
-        <div className="space-y-8 bg-gray-900 bg-opacity-50 p-8 rounded-3xl border border-gray-800 shadow-2xl">
-          <h2 className="text-6xl font-extrabold text-pink-300 border-b-2 border-gray-600 pb-4 mb-8">Fruit Teas & Slushes</h2>
-          <div className="space-y-6">
-            {fruitTeas.map(item => (
-              <div key={item.id} className="flex justify-between items-center text-4xl border-b border-gray-800 pb-3 border-dashed">
-                <span className="font-semibold text-gray-100">{item.name}</span>
-                <span className="font-bold text-gray-300 text-3xl px-4 py-2 bg-gray-800 rounded-lg">${parseFloat(item.default_price).toFixed(2)}</span>
+        )}
+      </header>
+
+      {/* Main columns */}
+      <main id="main-content" className="flex min-h-0 flex-1 px-8 py-4">
+        <div className="grid grid-cols-3 gap-8 w-full h-full">
+          {/* Column 1: Milky Series & Specialty */}
+          <div className="flex flex-col gap-6">
+            <section>
+              <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
+                <h2 className="text-2xl font-black uppercase tracking-tight text-white">Milky Series</h2>
               </div>
-            ))}
+              <div className="flex flex-col">
+                {milkTeas.map(item => <ItemRow key={item.id} item={item} />)}
+              </div>
+            </section>
+            {(specialty.length > 0) && (
+              <section>
+                <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
+                  <h2 className="text-2xl font-black uppercase tracking-tight text-white">Fresh Brew & Specialty</h2>
+                </div>
+                <div className="flex flex-col">
+                  {specialty.map(item => <ItemRow key={item.id} item={item} />)}
+                </div>
+              </section>
+            )}
+          </div>
+
+          {/* Column 2: Fruity Beverage */}
+          <div className="flex flex-col gap-6">
+            <section>
+              <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
+                <h2 className="text-2xl font-black uppercase tracking-tight text-white">Fruity Beverage</h2>
+              </div>
+              <div className="flex flex-col">
+                {fruitTeas.map(item => <ItemRow key={item.id} item={item} />)}
+              </div>
+            </section>
+          </div>
+
+          {/* Column 3: Matcha & Ice Blended */}
+          <div className="flex flex-col gap-6">
+            {(matcha.length > 0) && (
+              <section>
+                <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
+                  <h2 className="text-2xl font-black uppercase tracking-tight text-white">New Matcha Series</h2>
+                </div>
+                <div className="flex flex-col">
+                  {matcha.map(item => <ItemRow key={item.id} item={item} />)}
+                </div>
+              </section>
+            )}
+            {(slushes.length > 0) && (
+              <section>
+                <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
+                  <h2 className="text-2xl font-black uppercase tracking-tight text-white">Ice-Blended</h2>
+                </div>
+                <div className="flex flex-col">
+                  {slushes.map(item => <ItemRow key={item.id} item={item} />)}
+                </div>
+              </section>
+            )}
           </div>
         </div>
       </main>
+
+      {/* Customization Legend Bottom Footer */}
+      <footer className="shrink-0 border-t-[3px] border-stone-800 bg-[#0a0a0a] px-12 py-3">
+         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-6 xl:gap-8">
+            <div className="flex flex-col gap-2 font-medium flex-1 text-sm text-stone-300">
+               <div className="flex flex-wrap items-center gap-3">
+                  <span className="w-36 shrink-0 text-right text-sm font-black uppercase tracking-widest text-[#a1a1aa]">Ice Level</span>
+                  <span>Regular &bull; Less &bull; No Ice</span>
+               </div>
+               <div className="flex flex-wrap items-center gap-3">
+                  <span className="w-36 shrink-0 text-right text-sm font-black uppercase tracking-widest text-[#a1a1aa]">Sweetness Level</span>
+                  <span className="flex flex-wrap gap-x-2">
+                    <span>Normal 100% &bull;</span>
+                    <span>Less 80% &bull;</span>
+                    <span>Half 50% &bull;</span>
+                    <span>Light 30% &bull;</span>
+                    <span>No Sugar 0%</span>
+                  </span>
+               </div>
+            </div>
+
+            <div className="flex gap-4 flex-1 xl:justify-end text-sm text-stone-300 mt-1 xl:mt-0">
+               <span className="shrink-0 font-black uppercase tracking-widest text-[#a1a1aa]">Topping</span>
+               <div className="grid grid-cols-2 gap-x-6 gap-y-1 lg:grid-cols-4">
+                  <span>Pearls (Boba)</span>
+                  <span>Lychee Jelly</span>
+                  <span>Crystal Boba</span>
+                  <span>Ice Cream</span>
+                  <span>Coffee Jelly</span>
+                  <span>Honey Jelly</span>
+                  <span>Mango Popping Boba</span>
+                  <span>Creama</span>
+                  <span>Pudding</span>
+                  <span className="col-span-2">Strawberry Popping Boba</span>
+               </div>
+            </div>
+         </div>
+         <p className="mt-3 text-center text-[10px] text-stone-600 uppercase font-semibold">
+            Food Allergy Notice: We cannot guarantee that any of our products are free from allergens. (Including dairy, eggs, soy, tree nuts, wheat and others) as we use shared equipment to store, prepare and serve them.
+         </p>
+      </footer>
     </div>
   );
 }

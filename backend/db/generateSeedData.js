@@ -79,23 +79,72 @@ function buildInventory() {
 }
 
 function buildMenuItems() {
-  return [
-    { id: 1, name: 'Classic Milk Tea', description: 'Traditional black milk tea with boba.', category: 'Milk Tea', default_price: 4.5, image_url: '/images/classic_milk_tea.png', is_available: true },
-    { id: 2, name: 'Taro Milk Tea', description: 'Creamy taro root blended with milk tea.', category: 'Milk Tea', default_price: 5.0, image_url: '/images/taro_milk_tea.png', is_available: true },
-    { id: 3, name: 'Mango Green Tea', description: 'Refreshing jasmine green tea with mango syrup.', category: 'Fruit Tea', default_price: 4.75, image_url: '/images/mango_green_tea.png', is_available: true },
-    { id: 4, name: 'Strawberry Slush', description: 'Ice blended strawberry over green tea.', category: 'Slush', default_price: 5.5, image_url: '/images/strawberry_slush.png', is_available: true },
-    { id: 5, name: 'Brown Sugar Boba', description: 'Fresh milk with warm brown sugar glaze and boba.', category: 'Specialty', default_price: 5.75, image_url: '/images/brown_sugar_boba.png', is_available: true },
+  const SHARETEA_MENU = [
+    // Milky Series & Fresh Brew
+    { name: 'Classic Pearl Milk Tea', category: 'Milk Tea', default_price: 4.75 },
+    { name: 'Honey Pearl Milk Tea', category: 'Milk Tea', default_price: 5.00 },
+    { name: 'Coffee Creama', category: 'Milk Tea', default_price: 5.50 },
+    { name: 'Coffee Milk Tea w/ Coffee Jelly', category: 'Milk Tea', default_price: 5.25 },
+    { name: 'Hokkaido Pearl Milk Tea', category: 'Milk Tea', default_price: 5.25 },
+    { name: 'Thai Pearl Milk Tea', category: 'Milk Tea', default_price: 5.00 },
+    { name: 'Taro Pearl Milk Tea', category: 'Milk Tea', default_price: 5.00 },
+    { name: 'Mango Green Milk Tea', category: 'Milk Tea', default_price: 5.25 },
+    { name: 'Golden Retriever', category: 'Milk Tea', default_price: 5.75 },
+    { name: 'Coconut Pearl Milk Tea', category: 'Milk Tea', default_price: 5.50 },
+    { name: 'Classic Tea', category: 'Specialty', default_price: 4.00 },
+    { name: 'Honey Tea', category: 'Specialty', default_price: 4.50 },
+  
+    // Fruity Beverage & Non-Caffeinated
+    { name: 'Mango Green Tea', category: 'Fruit Tea', default_price: 4.75 },
+    { name: 'Passion Chess', category: 'Fruit Tea', default_price: 5.25 },
+    { name: 'Berry Lychee Burst', category: 'Fruit Tea', default_price: 5.50 },
+    { name: 'Peach Tea w/ Honey Jelly', category: 'Fruit Tea', default_price: 5.25 },
+    { name: 'Mango & Passion Fruit Tea', category: 'Fruit Tea', default_price: 5.00 },
+    { name: 'Honey Lemonade', category: 'Fruit Tea', default_price: 4.50 },
+    { name: 'Tiger Boba', category: 'Fruit Tea', default_price: 5.75 }, 
+    { name: 'Strawberry Coconut', category: 'Fruit Tea', default_price: 5.50 },
+    { name: 'Strawberry Coconut Ice Blended', category: 'Slush', default_price: 6.25 },
+    { name: 'Halo Halo', category: 'Fruit Tea', default_price: 6.50 },
+    { name: 'Halo Halo Ice Blended', category: 'Slush', default_price: 7.00 },
+    { name: 'Wintermelon Lemonade', category: 'Fruit Tea', default_price: 4.50 },
+    { name: 'Wintermelon Lemonade Ice Blended', category: 'Slush', default_price: 5.25 },
+    { name: 'Wintermelon w/ Fresh Milk', category: 'Fruit Tea', default_price: 5.00 },
+  
+    // Matcha Series
+    { name: 'Matcha Pearl Milk Tea', category: 'Matcha', default_price: 5.50 },
+    { name: 'Matcha Fresh Milk', category: 'Matcha', default_price: 5.75 },
+    { name: 'Strawberry Matcha Fresh Milk', category: 'Matcha', default_price: 6.25 },
+    { name: 'Mango Matcha Fresh Milk', category: 'Matcha', default_price: 6.25 },
+    { name: 'Matcha Ice Blended', category: 'Slush', default_price: 6.50 },
+  
+    // Ice-Blended
+    { name: 'Oreo w/ Pearl', category: 'Slush', default_price: 6.00 },
+    { name: 'Taro w/ Pudding', category: 'Slush', default_price: 6.00 },
+    { name: 'Thai Tea w/ Pearl', category: 'Slush', default_price: 6.00 },
+    { name: 'Coffee w/ Ice Cream', category: 'Slush', default_price: 6.50 },
+    { name: 'Mango w/ Ice Cream', category: 'Slush', default_price: 6.00 },
+    { name: 'Strawberry w/ Lychee Jelly & Ice Cream', category: 'Slush', default_price: 6.50 },
+    { name: 'Peach Tea w/ Lychee Jelly', category: 'Slush', default_price: 5.50 },
+    { name: 'Lava Flow', category: 'Slush', default_price: 6.50 },
   ];
+
+  return SHARETEA_MENU.map((item, i) => ({
+    id: i + 1,
+    name: item.name,
+    description: "Delicious " + item.name,
+    category: item.category,
+    default_price: item.default_price,
+    image_url: '/images/placeholder.png',
+    is_available: true
+  }));
 }
 
-function buildProductInventory() {
-  return [
-    { ProductID: 1, InventoryID: 2 }, { ProductID: 1, InventoryID: 4 }, { ProductID: 1, InventoryID: 1 }, { ProductID: 1, InventoryID: 11 }, { ProductID: 1, InventoryID: 12 },
-    { ProductID: 2, InventoryID: 2 }, { ProductID: 2, InventoryID: 4 }, { ProductID: 2, InventoryID: 7 }, { ProductID: 2, InventoryID: 1 }, { ProductID: 2, InventoryID: 11 }, { ProductID: 2, InventoryID: 12 },
-    { ProductID: 3, InventoryID: 10 }, { ProductID: 3, InventoryID: 3 }, { ProductID: 3, InventoryID: 6 }, { ProductID: 3, InventoryID: 11 }, { ProductID: 3, InventoryID: 12 },
-    { ProductID: 4, InventoryID: 3 }, { ProductID: 4, InventoryID: 9 }, { ProductID: 4, InventoryID: 11 }, { ProductID: 4, InventoryID: 12 },
-    { ProductID: 5, InventoryID: 4 }, { ProductID: 5, InventoryID: 8 }, { ProductID: 5, InventoryID: 1 }, { ProductID: 5, InventoryID: 11 }, { ProductID: 5, InventoryID: 12 },
-  ];
+function buildProductInventory(menuItems) {
+  // Just map random products to inventory for seed to satisfy foreign constraints
+  return menuItems.map(item => ({
+    ProductID: item.id,
+    InventoryID: 1
+  }));
 }
 
 function buildTransactions(menuItems, count) {
@@ -147,7 +196,7 @@ function main() {
   const users = buildUsers();
   const inventory = buildInventory();
   const menuItems = buildMenuItems();
-  const productInventory = buildProductInventory();
+  const productInventory = buildProductInventory(menuItems);
   const txCount = randomInt(40, 70);
   const { transactions, transactionItems, orderItems } = buildTransactions(menuItems, txCount);
 

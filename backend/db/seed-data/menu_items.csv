@@ -1,6 +1,40 @@
 id,name,description,category,default_price,image_url,is_available
-1,Classic Milk Tea,Traditional black milk tea with boba.,Milk Tea,4.5,/images/classic_milk_tea.png,true
-2,Taro Milk Tea,Creamy taro root blended with milk tea.,Milk Tea,5,/images/taro_milk_tea.png,true
-3,Mango Green Tea,Refreshing jasmine green tea with mango syrup.,Fruit Tea,4.75,/images/mango_green_tea.png,true
-4,Strawberry Slush,Ice blended strawberry over green tea.,Slush,5.5,/images/strawberry_slush.png,true
-5,Brown Sugar Boba,Fresh milk with warm brown sugar glaze and boba.,Specialty,5.75,/images/brown_sugar_boba.png,true
+1,Classic Pearl Milk Tea,Delicious Classic Pearl Milk Tea,Milk Tea,4.75,/images/placeholder.png,true
+2,Honey Pearl Milk Tea,Delicious Honey Pearl Milk Tea,Milk Tea,5,/images/placeholder.png,true
+3,Coffee Creama,Delicious Coffee Creama,Milk Tea,5.5,/images/placeholder.png,true
+4,Coffee Milk Tea w/ Coffee Jelly,Delicious Coffee Milk Tea w/ Coffee Jelly,Milk Tea,5.25,/images/placeholder.png,true
+5,Hokkaido Pearl Milk Tea,Delicious Hokkaido Pearl Milk Tea,Milk Tea,5.25,/images/placeholder.png,true
+6,Thai Pearl Milk Tea,Delicious Thai Pearl Milk Tea,Milk Tea,5,/images/placeholder.png,true
+7,Taro Pearl Milk Tea,Delicious Taro Pearl Milk Tea,Milk Tea,5,/images/placeholder.png,true
+8,Mango Green Milk Tea,Delicious Mango Green Milk Tea,Milk Tea,5.25,/images/placeholder.png,true
+9,Golden Retriever,Delicious Golden Retriever,Milk Tea,5.75,/images/placeholder.png,true
+10,Coconut Pearl Milk Tea,Delicious Coconut Pearl Milk Tea,Milk Tea,5.5,/images/placeholder.png,true
+11,Classic Tea,Delicious Classic Tea,Specialty,4,/images/placeholder.png,true
+12,Honey Tea,Delicious Honey Tea,Specialty,4.5,/images/placeholder.png,true
+13,Mango Green Tea,Delicious Mango Green Tea,Fruit Tea,4.75,/images/placeholder.png,true
+14,Passion Chess,Delicious Passion Chess,Fruit Tea,5.25,/images/placeholder.png,true
+15,Berry Lychee Burst,Delicious Berry Lychee Burst,Fruit Tea,5.5,/images/placeholder.png,true
+16,Peach Tea w/ Honey Jelly,Delicious Peach Tea w/ Honey Jelly,Fruit Tea,5.25,/images/placeholder.png,true
+17,Mango & Passion Fruit Tea,Delicious Mango & Passion Fruit Tea,Fruit Tea,5,/images/placeholder.png,true
+18,Honey Lemonade,Delicious Honey Lemonade,Fruit Tea,4.5,/images/placeholder.png,true
+19,Tiger Boba,Delicious Tiger Boba,Fruit Tea,5.75,/images/placeholder.png,true
+20,Strawberry Coconut,Delicious Strawberry Coconut,Fruit Tea,5.5,/images/placeholder.png,true
+21,Strawberry Coconut Ice Blended,Delicious Strawberry Coconut Ice Blended,Slush,6.25,/images/placeholder.png,true
+22,Halo Halo,Delicious Halo Halo,Fruit Tea,6.5,/images/placeholder.png,true
+23,Halo Halo Ice Blended,Delicious Halo Halo Ice Blended,Slush,7,/images/placeholder.png,true
+24,Wintermelon Lemonade,Delicious Wintermelon Lemonade,Fruit Tea,4.5,/images/placeholder.png,true
+25,Wintermelon Lemonade Ice Blended,Delicious Wintermelon Lemonade Ice Blended,Slush,5.25,/images/placeholder.png,true
+26,Wintermelon w/ Fresh Milk,Delicious Wintermelon w/ Fresh Milk,Fruit Tea,5,/images/placeholder.png,true
+27,Matcha Pearl Milk Tea,Delicious Matcha Pearl Milk Tea,Matcha,5.5,/images/placeholder.png,true
+28,Matcha Fresh Milk,Delicious Matcha Fresh Milk,Matcha,5.75,/images/placeholder.png,true
+29,Strawberry Matcha Fresh Milk,Delicious Strawberry Matcha Fresh Milk,Matcha,6.25,/images/placeholder.png,true
+30,Mango Matcha Fresh Milk,Delicious Mango Matcha Fresh Milk,Matcha,6.25,/images/placeholder.png,true
+31,Matcha Ice Blended,Delicious Matcha Ice Blended,Slush,6.5,/images/placeholder.png,true
+32,Oreo w/ Pearl,Delicious Oreo w/ Pearl,Slush,6,/images/placeholder.png,true
+33,Taro w/ Pudding,Delicious Taro w/ Pudding,Slush,6,/images/placeholder.png,true
+34,Thai Tea w/ Pearl,Delicious Thai Tea w/ Pearl,Slush,6,/images/placeholder.png,true
+35,Coffee w/ Ice Cream,Delicious Coffee w/ Ice Cream,Slush,6.5,/images/placeholder.png,true
+36,Mango w/ Ice Cream,Delicious Mango w/ Ice Cream,Slush,6,/images/placeholder.png,true
+37,Strawberry w/ Lychee Jelly & Ice Cream,Delicious Strawberry w/ Lychee Jelly & Ice Cream,Slush,6.5,/images/placeholder.png,true
+38,Peach Tea w/ Lychee Jelly,Delicious Peach Tea w/ Lychee Jelly,Slush,5.5,/images/placeholder.png,true
+39,Lava Flow,Delicious Lava Flow,Slush,6.5,/images/placeholder.png,true

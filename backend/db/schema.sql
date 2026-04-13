@@ -1,6 +1,9 @@
 -- Drops dependent tables safely to allow repeated execution
+DROP TABLE IF EXISTS login_points_daily CASCADE;
+DROP TABLE IF EXISTS points_ledger CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS customer_accounts CASCADE;
 DROP TABLE IF EXISTS TransactionItem CASCADE;
 DROP TABLE IF EXISTS "Transaction" CASCADE;
 DROP TABLE IF EXISTS ProductInventory CASCADE;
@@ -13,10 +16,25 @@ DROP TABLE IF EXISTS users CASCADE;
 CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL, -- 'manager', 'cashier'
+    role VARCHAR(50) NOT NULL, -- 'manager', 'cashier', 'customer'
     email VARCHAR(255) UNIQUE NOT NULL,
     oauth_id VARCHAR(255),
+    points_balance INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Customer kiosk OAuth identities (Google subject + profile cached from provider)
+CREATE TABLE customer_accounts (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    picture_url VARCHAR(512),
+    oauth_provider VARCHAR(50) NOT NULL DEFAULT 'google',
+    oauth_subject VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (oauth_provider, oauth_subject),
+    UNIQUE (email)
 );
 
 CREATE TABLE inventory (
@@ -93,9 +111,11 @@ CREATE TABLE manager_z_report_log (
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
     cashier_id INT REFERENCES users(id),
+    customer_account_id INT REFERENCES customer_accounts(id) ON DELETE SET NULL,
     transaction_id INT REFERENCES "Transaction"(TransactionID) ON DELETE SET NULL,
     total_amount DECIMAL(10,2) NOT NULL,
     status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'completed', 'cancelled'
+    points_earned INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -106,4 +126,24 @@ CREATE TABLE order_items (
     quantity INT DEFAULT 1,
     customization JSONB, -- e.g. {"ice": "50%", "sugar": "70%", "toppings": ["boba", "lychee jelly"]}
     price_at_time DECIMAL(10,2) NOT NULL
+);
+
+-- Loyalty / analytics: append-only ledger plus cached per-user balance (updated in the same transaction as inserts).
+CREATE TABLE points_ledger (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    activity_type VARCHAR(32) NOT NULL, -- 'order', 'login', 'bonus', 'order_reversal'
+    points_delta INT NOT NULL,
+    order_id INT REFERENCES orders(id) ON DELETE SET NULL,
+    metadata JSONB DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_points_ledger_user_time ON points_ledger (user_id, created_at DESC);
+
+-- Prevents farming login points: at most one successful award per user per UTC calendar day.
+CREATE TABLE login_points_daily (
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    award_date DATE NOT NULL,
+    PRIMARY KEY (user_id, award_date)
 );
