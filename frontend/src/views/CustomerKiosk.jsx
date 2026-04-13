@@ -300,7 +300,18 @@ export default function CustomerKiosk() {
       setOrderSuccess({ orderId: res.data.id });
       setCart([]);
     } catch (err) {
-      alert(language === 'es' ? 'No se pudo completar el pago.' : 'Checkout failed. Please try again.');
+      const status = err.response?.status;
+      if (status === 401) {
+        localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+        setSessionUser(null);
+        alert(
+          language === 'es'
+            ? 'Tu sesión expiró. Inicia sesión de nuevo para completar el pago.'
+            : 'Your session expired. Please sign in again to complete checkout.'
+        );
+      } else {
+        alert(language === 'es' ? 'No se pudo completar el pago.' : 'Checkout failed. Please try again.');
+      }
       console.error(err);
     }
     setCheckoutLoading(false);
