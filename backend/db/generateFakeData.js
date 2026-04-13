@@ -62,7 +62,7 @@ async function main() {
     await db.query('BEGIN');
     try {
       const orderRes = await db.query(
-        'INSERT INTO orders (cashier_id, total_amount, status) VALUES ($1, $2, $3) RETURNING id',
+        'INSERT INTO orders (cashier_id, customer_account_id, total_amount, status) VALUES ($1, NULL, $2, $3) RETURNING id',
         [cashierId, Number(total.toFixed(2)), status]
       );
       const orderId = orderRes.rows[0].id;

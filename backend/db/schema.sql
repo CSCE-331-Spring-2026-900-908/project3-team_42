@@ -1,6 +1,7 @@
 -- Drops dependent tables safely to allow repeated execution
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
+DROP TABLE IF EXISTS customer_accounts CASCADE;
 DROP TABLE IF EXISTS TransactionItem CASCADE;
 DROP TABLE IF EXISTS "Transaction" CASCADE;
 DROP TABLE IF EXISTS ProductInventory CASCADE;
@@ -17,6 +18,20 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     oauth_id VARCHAR(255),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Customer kiosk OAuth identities (Google subject + profile cached from provider)
+CREATE TABLE customer_accounts (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    name VARCHAR(255),
+    picture_url VARCHAR(512),
+    oauth_provider VARCHAR(50) NOT NULL DEFAULT 'google',
+    oauth_subject VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (oauth_provider, oauth_subject),
+    UNIQUE (email)
 );
 
 CREATE TABLE inventory (
@@ -93,6 +108,7 @@ CREATE TABLE manager_z_report_log (
 CREATE TABLE orders (
     id SERIAL PRIMARY KEY,
     cashier_id INT REFERENCES users(id),
+    customer_account_id INT REFERENCES customer_accounts(id) ON DELETE SET NULL,
     transaction_id INT REFERENCES "Transaction"(TransactionID) ON DELETE SET NULL,
     total_amount DECIMAL(10,2) NOT NULL,
     status VARCHAR(50) DEFAULT 'pending', -- 'pending', 'completed', 'cancelled'
