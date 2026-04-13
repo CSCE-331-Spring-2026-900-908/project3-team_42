@@ -59,9 +59,6 @@ router.post('/orders', async (req, res) => {
 
     if (placed_via === 'customer_kiosk') {
         customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
-        if (customerAccountId == null) {
-            return res.status(401).json({ error: 'Customer login required' });
-        }
     }
 
     try {
