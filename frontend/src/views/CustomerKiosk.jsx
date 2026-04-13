@@ -301,16 +301,18 @@ export default function CustomerKiosk() {
       setCart([]);
     } catch (err) {
       const status = err.response?.status;
+      const target = language === 'es' ? 'es' : 'en';
       if (status === 401) {
         localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
         setSessionUser(null);
-        alert(
-          language === 'es'
-            ? 'Tu sesión expiró. Inicia sesión de nuevo para completar el pago.'
-            : 'Your session expired. Please sign in again to complete checkout.'
+        const text = await translateText(
+          'Your session expired. Please sign in again to complete checkout.',
+          target
         );
+        alert(text);
       } else {
-        alert(language === 'es' ? 'No se pudo completar el pago.' : 'Checkout failed. Please try again.');
+        const text = await translateText('Checkout failed. Please try again.', target);
+        alert(text);
       }
       console.error(err);
     }
