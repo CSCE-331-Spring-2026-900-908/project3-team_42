@@ -49,8 +49,14 @@ export default function CustomerKiosk() {
   const [sessionLoading, setSessionLoading] = useState(true);
 
   const [menuItems, setMenuItems] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [customizingItem, setCustomizingItem] = useState(null);
+  const [sweetness, setSweetness] = useState('Normal 100%');
+  const [ice, setIce] = useState('Regular');
+  const [selectedToppings, setSelectedToppings] = useState([]);
   const [cart, setCart] = useState([]);
   const [orderSuccess, setOrderSuccess] = useState(null);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const orderSuccessCtaRef = useRef(null);
   const [language, setLanguage] = useState('en');
@@ -147,15 +153,15 @@ export default function CustomerKiosk() {
     return () => window.removeEventListener('keydown', trap);
   }, [chatOpen, getChatFocusable]);
 
-  const byCategory = useMemo(() => {
-    const map = new Map();
-    for (const item of menuItems) {
-      const cat = item.category || 'Drinks';
-      if (!map.has(cat)) map.set(cat, []);
-      map.get(cat).push(item);
-    }
-    return map;
+  const categories = useMemo(() => {
+    const cats = new Set(menuItems.map(item => item.category || 'Specialty'));
+    return ['All', ...cats];
   }, [menuItems]);
+
+  const displayedItems = useMemo(() => {
+    if (selectedCategory === 'All') return menuItems;
+    return menuItems.filter(item => (item.category || 'Specialty') === selectedCategory);
+  }, [menuItems, selectedCategory]);
 
   const translateText = async (text, target) => {
     if (target === 'en') return text;
@@ -263,6 +269,40 @@ export default function CustomerKiosk() {
     setIsChatting(false);
   };
 
+  const TOPPING_OPTIONS = [
+    { id: 'boba', name: 'Boba (+0.50)', price: 0.50 },
+    { id: 'lychee_jelly', name: 'Lychee Jelly (+0.50)', price: 0.50 },
+    { id: 'pudding', name: 'Pudding (+0.50)', price: 0.50 }
+  ];
+
+  const toggleTopping = (id) => {
+    setSelectedToppings((prev) => 
+      prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
+    );
+  };
+
+  const handleDrinkClick = (item) => {
+    setCustomizingItem(item);
+    setSweetness('Normal 100%');
+    setIce('Regular');
+    setSelectedToppings([]);
+  };
+
+  const handleCustomizationConfirm = () => {
+    if (!customizingItem) return;
+    const finalItem = {
+      ...customizingItem,
+      custom_price: parseFloat(customizingItem.default_price) + (selectedToppings.length * 0.5),
+      customization: {
+        sweetness,
+        ice,
+        toppings: selectedToppings
+      }
+    };
+    addToCart(finalItem);
+    setCustomizingItem(null);
+  };
+
   const addToCart = (item) => {
     setCart((prev) => {
       const i = prev.findIndex((l) => l.id === item.id);
@@ -289,18 +329,22 @@ export default function CustomerKiosk() {
     setCart((prev) => prev.filter((line) => line.unique_id !== unique_id));
   };
 
-  const cartTotal = cart.reduce((sum, line) => sum + parseFloat(line.default_price) * line.quantity, 0);
+  const cartTotal = cart.reduce((sum, line) => sum + (line.custom_price ?? parseFloat(line.default_price)) * line.quantity, 0);
   const itemCount = cart.reduce((n, line) => n + line.quantity, 0);
 
-  const handleCheckout = async () => {
+  const handleCheckout = () => {
     if (cart.length === 0) return;
+    setPaymentModalOpen(true);
+  };
+
+  const processPayment = async () => {
     setCheckoutLoading(true);
-    const total_amount = cartTotal;
+    const total_amount = cartTotal * 1.0825;
     const formattedItems = cart.map((i) => ({
       menu_item_id: i.id,
       quantity: i.quantity,
-      customization: null,
-      price: i.default_price,
+      customization: i.customization || null,
+      price: i.custom_price ?? i.default_price,
     }));
     try {
       const res = await api.post('/orders', {
@@ -311,6 +355,7 @@ export default function CustomerKiosk() {
       });
       setOrderSuccess({ orderId: res.data.id });
       setCart([]);
+      setPaymentModalOpen(false);
     } catch (err) {
       const status = err.response?.status;
       const target = language === 'es' ? 'es' : 'en';
@@ -381,207 +426,150 @@ export default function CustomerKiosk() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-gradient-to-b from-violet-50 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)]">
-      <a href="#main-content" className="skip-link">Skip to main content</a>
-      <div
-        className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-gradient-to-b from-violet-200/40 to-transparent"
-        aria-hidden="true"
-      />
-
-      <header className="relative z-20 border-b border-violet-100/80 bg-white/75 px-5 py-6 backdrop-blur-md sm:px-10">
-        <div className="mx-auto flex max-w-6xl flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Self-service</p>
-            <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-violet-950 sm:text-4xl">
-              {copy.welcome}
-            </h1>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {[
-                { n: 1, label: copy.stepBrowse, active: !cartOpen },
-                { n: 2, label: copy.stepReview, active: cartOpen && cartTotal > 0 },
-                { n: 3, label: copy.stepPay, active: false },
-              ].map((s) => (
-                <span
-                  key={s.n}
-                  className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
-                    s.active ? 'bg-violet-600 text-white shadow-md shadow-violet-600/25' : 'bg-violet-100/80 text-violet-800'
-                  }`}
+    <div className="flex h-screen flex-row bg-[#f8fafc] font-sans overflow-hidden text-slate-800">
+      
+      {/* Main Left Menu Section */}
+      <div className="flex flex-1 flex-col p-4 pr-6 relative z-10">
+        <header className="mb-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">{copy.welcome}</h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`rounded-full px-5 py-2 text-sm font-semibold transition ${selectedCategory === cat ? 'bg-slate-900 text-white shadow-sm' : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                 >
-                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/20 text-[10px]">{s.n}</span>
-                  {s.label}
-                </span>
+                  {cat}
+                </button>
               ))}
             </div>
           </div>
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-            <div className="flex items-center gap-3 rounded-2xl border border-violet-100 bg-violet-50/80 px-3 py-2 sm:max-w-xs">
+          
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2">
               {sessionUser.pictureUrl ? (
-                <img
-                  src={sessionUser.pictureUrl}
-                  alt=""
-                  className="h-10 w-10 shrink-0 rounded-full border border-violet-200 object-cover"
-                />
+                <img src={sessionUser.pictureUrl} alt="" className="h-10 w-10 shrink-0 rounded-full border border-slate-200 object-cover" />
               ) : (
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-violet-200 text-sm font-bold text-violet-800">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-sm font-bold text-slate-800">
                   {(sessionUser.name || sessionUser.email || '?').slice(0, 1).toUpperCase()}
                 </span>
               )}
-              <div className="min-w-0">
-                <p className="text-xs font-medium text-violet-700">{copy.signedInAs}</p>
-                <p className="truncate text-sm font-semibold text-violet-950" title={sessionUser.email}>
+              <div className="min-w-0 pr-2">
+                <p className="text-xs font-medium text-slate-500">{copy.signedInAs}</p>
+                <p className="truncate text-sm font-semibold text-slate-900" title={sessionUser.email}>
                   {sessionUser.name || sessionUser.email}
                 </p>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-2xl border border-violet-200 bg-white px-4 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-50"
-            >
+            <button type="button" onClick={handleLogout} className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">
               {sessionUser.isGuest ? copy.endSession : copy.signOut}
             </button>
-            <button
-              type="button"
-              onClick={handleTranslateToggle}
-              disabled={isTranslating}
-              className="rounded-2xl border-2 border-violet-200 bg-white px-6 py-3 text-base font-semibold text-violet-900 shadow-sm transition hover:border-violet-300 hover:bg-violet-50 disabled:opacity-50"
-            >
+            <button type="button" onClick={handleTranslateToggle} disabled={isTranslating} className="rounded-2xl border-2 border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 disabled:opacity-50">
               {isTranslating ? '…' : copy.translateBtn}
             </button>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main id="main-content" className={`relative z-10 mx-auto max-w-6xl px-5 py-10 sm:px-10 ${mainPad}`}>
-        <div className="space-y-14">
-          {[...byCategory.entries()].map(([category, items]) => (
-            <section key={category}>
-              <h2 className="mb-6 font-display text-2xl font-bold text-violet-950">{category}</h2>
-              <div className="grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                {items.map((item) => (
-                  <article
-                    key={item.id}
-                    className="flex flex-col overflow-hidden rounded-3xl border border-violet-100/90 bg-white shadow-[0_8px_30px_-12px_rgba(91,33,182,0.2)] ring-1 ring-violet-100/50"
-                  >
-                    <div className="relative aspect-[4/3] bg-gradient-to-br from-violet-100 to-fuchsia-50">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="h-full w-full object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-full items-center justify-center text-6xl opacity-30" aria-hidden="true">
-                          🧋
-                        </div>
-                      )}
-                      <span className="absolute left-4 top-4 rounded-full bg-black/50 px-3 py-1 text-xs font-semibold text-white backdrop-blur-sm">
-                        {category}
-                      </span>
-                    </div>
-                    <div className="flex flex-1 flex-col p-6">
-                      <h3 className="font-display text-xl font-bold leading-snug text-violet-950">{item.name}</h3>
-                      <p className="mt-2 flex-1 text-sm leading-relaxed text-stone-600 line-clamp-3">{item.description}</p>
-                      <div className="mt-4 flex items-end justify-between gap-4 border-t border-violet-100 pt-4">
-                        <p
-                          className="font-display text-2xl font-bold tabular-nums text-violet-900"
-                          aria-label={`${parseFloat(item.default_price).toFixed(2)} dollars`}
-                        >
-                          ${parseFloat(item.default_price).toFixed(2)}
-                        </p>
-                        <button
-                          type="button"
-                          onClick={() => addToCart(item)}
-                          className="rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 py-3 text-base font-bold text-white shadow-lg shadow-violet-600/25 transition hover:from-violet-500 hover:to-fuchsia-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
-                          aria-label={`${copy.addToOrder}: ${item.name}`}
-                        >
-                          {copy.addToOrder}
-                        </button>
-                      </div>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
-      </main>
-
-      {cartOpen && (
-        <div
-          id="cart-region"
-          tabIndex={-1}
-          className="fixed bottom-[120px] left-0 right-0 z-30 max-h-[200px] overflow-y-auto border-t border-violet-200/80 bg-white/90 px-5 py-4 shadow-[0_-12px_40px_-16px_rgba(91,33,182,0.25)] backdrop-blur-md sm:bottom-[112px]"
-          aria-label={copy.yourOrder}
-        >
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 pb-2">
-            <p className="font-display text-lg font-bold text-violet-950">{copy.yourOrder}</p>
-            <span className="rounded-full bg-violet-100 px-3 py-1 text-sm font-bold text-violet-800">
-              {itemCount} {itemCount === 1 ? 'item' : 'items'}
-            </span>
-          </div>
-          <ul className="mx-auto flex max-w-6xl flex-col gap-2">
-            {cart.map((line) => (
-              <li
-                key={line.unique_id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-100 bg-violet-50/50 px-4 py-3"
+        <div className="min-h-0 flex-1 overflow-y-auto pb-8">
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-3 shrink-0">
+            {displayedItems.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => handleDrinkClick(item)}
+                className="flex flex-col items-center justify-start min-h-[160px] overflow-hidden rounded-xl border border-slate-200 bg-white text-center transition hover:border-[#93c5fd] hover:shadow-md active:scale-95"
               >
-                <span className="min-w-0 flex-1 font-semibold text-stone-800">
-                  {line.name}
-                  <span className="ml-2 text-sm font-normal tabular-nums text-stone-500">
-                    ${parseFloat(line.default_price).toFixed(2)} × {line.quantity}
-                  </span>
-                </span>
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center rounded-xl bg-white p-1 shadow-sm ring-1 ring-violet-100">
-                    <button
-                      type="button"
-                      onClick={() => decrementLine(line.unique_id)}
-                      className="flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
-                      aria-label={language === 'es' ? 'Menos' : 'Decrease'}
-                    >
-                      −
-                    </button>
-                    <span className="min-w-[2rem] text-center font-bold tabular-nums">{line.quantity}</span>
-                    <button
-                      type="button"
-                      onClick={() => addToCart(line)}
-                      className="flex h-12 w-12 items-center justify-center rounded-lg text-lg font-bold text-violet-700 hover:bg-violet-50"
-                      aria-label={language === 'es' ? 'Más' : 'Increase'}
-                    >
-                      +
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => removeLine(line.unique_id)}
-                    className="flex h-12 w-12 items-center justify-center rounded-lg text-stone-400 hover:bg-red-50 hover:text-red-600"
-                    aria-label={language === 'es' ? 'Eliminar' : 'Remove'}
-                  >
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
+                <div className="w-full aspect-video bg-slate-100 flex items-center justify-center">
+                  {item.image_url ? (
+                    <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <span className="text-4xl opacity-40">🧋</span>
+                  )}
                 </div>
-              </li>
+                <div className="p-3 w-full flex flex-col items-center flex-1">
+                  <span className="text-[14px] font-bold leading-tight text-slate-800 line-clamp-2">
+                    {item.name}
+                  </span>
+                  <span className="mt-auto pt-1 text-sm font-medium text-slate-500">
+                    ${parseFloat(item.default_price).toFixed(2)}
+                  </span>
+                </div>
+              </button>
             ))}
-          </ul>
+          </div>
         </div>
-      )}
+      </div>
 
-      {!cartOpen && (
-        <p className="pointer-events-none fixed bottom-32 left-0 right-0 z-10 text-center text-sm text-violet-400/90">
-          {copy.emptyCart}
-        </p>
-      )}
+      {/* Right Sidebar Cart Section */}
+      <aside className="w-[380px] flex shrink-0 flex-col border-l border-slate-200 bg-white shadow-xl relative z-20">
+        <div className="border-b border-slate-100 p-6 flex justify-between items-center">
+          <h2 className="text-xl font-bold text-slate-900">{copy.yourOrder}</h2>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-600">
+            {itemCount} {itemCount === 1 ? 'item' : 'items'}
+          </span>
+        </div>
 
-      <div
-        className={`fixed bottom-28 right-6 z-40 flex flex-col items-end gap-3 sm:bottom-32 sm:right-10 ${chatOpen ? 'pointer-events-none opacity-0' : ''}`}
-      >
+        <div className="flex-1 overflow-y-auto p-6 relative">
+          {cart.length === 0 ? (
+            <div className="flex h-full items-center justify-center flex-col -mt-10 opacity-70">
+              <span className="text-4xl mb-4">🛒</span>
+              <p className="font-medium text-slate-500">{copy.emptyCart}</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {cart.map((item) => (
+                <div key={item.unique_id} className="flex flex-col rounded-xl border border-slate-100 bg-slate-50 p-3">
+                  <div className="flex justify-between items-start font-bold text-slate-800 text-[14px]">
+                    <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
+                    <span>${(item.custom_price ?? parseFloat(item.default_price)).toFixed(2)}</span>
+                  </div>
+                  {item.customization && (
+                    <div className="text-xs text-slate-500 mt-1 leading-relaxed">
+                      S: {item.customization.sweetness} | I: {item.customization.ice}
+                      {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
+                    </div>
+                  )}
+                  <div className="mt-2 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-lg font-bold text-slate-600 shadow-sm hover:bg-slate-100">−</button>
+                      <span className="font-bold tabular-nums text-slate-800">{item.quantity}</span>
+                      <button onClick={() => addToCart(item)} className="flex h-7 w-7 items-center justify-center rounded-md bg-white text-lg font-bold text-slate-600 shadow-sm hover:bg-slate-100">+</button>
+                    </div>
+                    <button onClick={() => removeLine(item.unique_id)} className="text-xs font-bold text-red-400 hover:text-red-500 transition">Remove</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="p-6 shrink-0 bg-white">
+          <div className="flex justify-between text-[15px] font-medium text-slate-600 mb-2">
+             <span>{copy.total} (Incl. Tax)</span>
+          </div>
+          <div className="border-t border-slate-200 pt-3 flex justify-between text-3xl font-black text-slate-900">
+            <span>{copy.total}</span>
+            <span>${(cartTotal * 1.0825).toFixed(2)}</span>
+          </div>
+
+          <button
+            id="checkout-btn"
+            onClick={handleCheckout}
+            disabled={cart.length === 0 || checkoutLoading}
+            className="w-full mt-6 rounded-2xl bg-[#93c5fd] py-4 text-xl font-bold text-white shadow-sm transition hover:bg-[#60a5fa] disabled:opacity-50 disabled:hover:bg-[#93c5fd]"
+          >
+            {checkoutLoading ? '...' : copy.checkout}
+          </button>
+        </div>
+      </aside>
+
+      {/* AI Chat Bot Overlay */}
+      <div className={`fixed bottom-6 right-96 mr-6 z-40 flex flex-col items-end gap-3 ${chatOpen ? 'pointer-events-none opacity-0' : ''}`}>
         <button
           type="button"
           onClick={() => setChatOpen(true)}
-          className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-2xl text-white shadow-xl shadow-violet-600/40 transition hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 focus-visible:ring-offset-2"
+          className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border border-slate-200 text-2xl shadow-lg transition hover:scale-105 active:scale-95"
           aria-label="Open menu assistant"
         >
           ✨
@@ -590,136 +578,173 @@ export default function CustomerKiosk() {
 
       <div
         ref={chatPanelRef}
-        className={`fixed bottom-28 right-6 z-50 w-[min(100vw-2rem,420px)] origin-bottom-right transition sm:bottom-32 sm:right-10 ${
+        className={`fixed bottom-6 right-96 mr-6 z-50 w-[380px] origin-bottom-right transition ${
           chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
         }`}
       >
-        <div className="flex max-h-[min(70vh,520px)] flex-col overflow-hidden rounded-3xl border border-violet-200 bg-white shadow-2xl shadow-violet-900/20">
-          <div className="flex items-center justify-between bg-gradient-to-r from-violet-800 to-fuchsia-700 px-5 py-4 text-white">
-            <span className="font-display text-lg font-bold">Boba assistant</span>
-            <button
-              type="button"
-              onClick={() => setChatOpen(false)}
-              className="flex h-12 w-12 items-center justify-center rounded-lg text-white/80 hover:bg-white/10 hover:text-white"
-              aria-label="Close assistant"
-            >
-              ✕
-            </button>
+        <div className="flex max-h-[500px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
+          <div className="flex items-center justify-between bg-slate-900 px-5 py-4 text-white">
+            <span className="font-bold">Boba assistant</span>
+            <button onClick={() => setChatOpen(false)} className="text-white/80 hover:text-white">✕</button>
           </div>
-          <div className="max-h-72 overflow-y-auto space-y-3 bg-violet-50/50 p-4">
-            {chatLog.length === 0 && (
-              <p className="text-center text-sm text-violet-600/80">{copy.assistantHint}</p>
-            )}
+          <div className="flex-1 min-h-[250px] max-h-72 overflow-y-auto space-y-3 bg-slate-50 p-4">
+            {chatLog.length === 0 && <p className="text-center text-sm text-slate-500">{copy.assistantHint}</p>}
             {chatLog.map((msg, i) => (
-              <div
-                key={i}
-                className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
-                  msg.sender === 'user'
-                    ? 'ml-auto bg-violet-600 text-white'
-                    : 'border border-violet-100 bg-white text-stone-800'
-                }`}
-              >
+              <div key={i} className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${msg.sender === 'user' ? 'ml-auto bg-slate-800 text-white' : 'border border-slate-200 bg-white text-slate-800'}`}>
                 <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
               </div>
             ))}
-            {isChatting && (
-              <p className="text-sm italic text-violet-500">…</p>
-            )}
+            {isChatting && <p className="text-sm italic text-slate-400">…</p>}
             <div ref={chatEndRef} />
           </div>
-          <form onSubmit={handleChatSubmit} className="flex items-center gap-2 border-t border-violet-100 bg-white p-3">
-            <VoiceDictationButton
-              lang={language === 'es' ? 'es-ES' : 'en-US'}
-              onTranscript={(text) => setChatInput((prev) => prev + text)}
-              size="sm"
-            />
-            <input
-              type="text"
-              value={chatInput}
-              onChange={(e) => setChatInput(e.target.value)}
-              className="min-h-[48px] flex-1 rounded-2xl border border-violet-100 bg-stone-50 px-4 text-base outline-none focus:ring-2 focus:ring-violet-400"
-              placeholder={language === 'es' ? 'Habla o escribe tu pregunta…' : 'Speak or type your question…'}
-            />
-            <button
-              type="submit"
-              disabled={isChatting}
-              className="min-h-[48px] rounded-2xl bg-violet-600 px-5 font-semibold text-white hover:bg-violet-500 disabled:opacity-50"
-            >
+          <form onSubmit={handleChatSubmit} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
+            <VoiceDictationButton lang={language === 'es' ? 'es-ES' : 'en-US'} onTranscript={(text) => setChatInput((prev) => prev + text)} size="sm" />
+            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Habla o escribe tu pregunta…' : 'Speak or type...'} />
+            <button type="submit" disabled={isChatting} className="min-h-[44px] rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {language === 'es' ? 'Enviar' : 'Send'}
             </button>
           </form>
         </div>
       </div>
 
-      <footer className="fixed bottom-0 left-0 right-0 z-30 border-t border-violet-200/90 bg-white/95 px-5 py-5 backdrop-blur-md sm:px-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-stretch gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div aria-live="polite" aria-atomic="true">
-            <p className="text-xs font-semibold uppercase tracking-wider text-stone-500">{copy.total}</p>
-            <p className="font-display text-4xl font-bold tabular-nums text-violet-950 sm:text-5xl">${cartTotal.toFixed(2)}</p>
-          </div>
-          <button
-            id="checkout-btn"
-            type="button"
-            onClick={handleCheckout}
-            disabled={cart.length === 0 || checkoutLoading}
-            className="min-h-[56px] rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-10 py-4 text-xl font-bold text-white shadow-lg shadow-violet-600/30 transition hover:from-violet-500 hover:to-fuchsia-500 disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-[240px] sm:text-2xl"
-            aria-label={copy.checkout}
-          >
-            {checkoutLoading ? '…' : copy.checkout}
-          </button>
-        </div>
-      </footer>
-
-      {orderSuccess && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-violet-950/55 px-5 py-10 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="order-success-title"
-          aria-describedby="order-success-desc"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setOrderSuccess(null);
-          }}
-        >
-          <div
-            className="w-full max-w-md rounded-3xl border border-violet-200 bg-white p-8 shadow-2xl shadow-violet-900/25"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-emerald-400 to-teal-500 text-3xl text-white shadow-lg shadow-emerald-500/30" aria-hidden="true">
-              ✓
+      {/* Customization Modal */}
+      {customizingItem && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="mb-6 flex items-start justify-between">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight text-slate-900">Customize</h2>
+                <p className="font-medium text-slate-500 mt-1.5">{customizingItem.name}</p>
+              </div>
+              <button onClick={() => setCustomizingItem(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
             </div>
-            <h2 id="order-success-title" className="text-center font-display text-2xl font-bold text-violet-950 sm:text-3xl">
-              {copy.orderSuccessTitle}
-            </h2>
-            <p id="order-success-desc" className="mt-3 text-center text-base text-stone-600">
-              {copy.orderSuccessLead}
-            </p>
-            <p className="mt-4 text-center font-display text-lg font-semibold text-violet-900">
-              {copy.orderSuccessThankYou}
-              {firstNameFromUser(sessionUser) ? `, ${firstNameFromUser(sessionUser)}!` : '!'}
-            </p>
-            <p className="mt-6 text-center">
-              <span className="text-xs font-semibold uppercase tracking-wider text-stone-500">
-                {copy.orderSuccessOrderLabel}
-              </span>
-              <span className="mt-1 block font-display text-3xl font-bold tabular-nums text-violet-950">
-                #{orderSuccess.orderId}
-              </span>
-            </p>
-            <button
-              ref={orderSuccessCtaRef}
-              type="button"
-              onClick={() => setOrderSuccess(null)}
-              className="mt-8 w-full min-h-[52px] rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-600 px-6 py-3 text-lg font-bold text-white shadow-lg shadow-violet-600/30 transition hover:from-violet-500 hover:to-fuchsia-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2"
-            >
-              {copy.orderSuccessCta}
-            </button>
-            <p className="mt-3 text-center text-xs text-stone-500">
-              {language === 'es' ? 'Toca fuera o pulsa Escape para cerrar.' : 'Tap outside or press Escape to close.'}
-            </p>
+
+            <div className="space-y-6">
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Sweetness</h3>
+                <div className="flex flex-wrap gap-2">
+                  {['0%', '25%', '50%', '75%', '100%'].map(level => {
+                    const label = `${level === '100%' ? 'Normal' : level === '0%' ? 'No Sugar' : level} ${level}`;
+                    return (
+                      <button
+                        key={level}
+                        onClick={() => setSweetness(level)}
+                        className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${sweetness === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Ice Level</h3>
+                <div className="flex flex-wrap gap-2">
+                  {['no ice', 'light ice', 'regular ice', 'extra ice'].map(level => (
+                    <button
+                      key={level}
+                      onClick={() => setIce(level)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${ice === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      {level.charAt(0).toUpperCase() + level.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
+                <div className="flex flex-col gap-2">
+                  {TOPPING_OPTIONS.map(topping => {
+                    const tName = topping.name.split(' ')[0];
+                    return (
+                      <label key={topping.id} className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${selectedToppings.includes(tName) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                        <span className="font-medium text-slate-800">{topping.name.replace(' (+0.50)', '')}</span>
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={selectedToppings.includes(tName)}
+                            onChange={() => toggleTopping(tName)}
+                            className="h-5 w-5 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
+                          />
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8">
+              <button
+                onClick={handleCustomizationConfirm}
+                className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
+              >
+                Add — <span className="tabular-nums">${(parseFloat(customizingItem.default_price) + selectedToppings.length * 0.50).toFixed(2)}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
+
+      {/* Payment Modal */}
+      {paymentModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl flex flex-col items-center text-center">
+            <h2 className="text-2xl font-black text-slate-900 mb-2">Tap to Pay</h2>
+            <p className="text-slate-500 mb-6 font-medium">Total: ${(cartTotal * 1.0825).toFixed(2)}</p>
+            
+            <button
+              onClick={processPayment}
+              disabled={checkoutLoading}
+              className="group relative flex h-48 w-48 flex-col items-center justify-center gap-4 rounded-[2rem] bg-slate-50 border-2 border-dashed border-slate-300 transition-all hover:border-[#93c5fd] hover:bg-[#eff6ff] active:scale-95 disabled:pointer-events-none disabled:opacity-70"
+            >
+              <div className="text-6xl transition-transform group-hover:scale-110">💳</div>
+              <span className="font-bold text-slate-600 group-hover:text-blue-600">
+                {checkoutLoading ? 'Processing...' : 'Tap Simulator'}
+              </span>
+            </button>
+            
+            <button 
+              onClick={() => setPaymentModalOpen(false)}
+              disabled={checkoutLoading}
+              className="mt-6 text-sm font-bold text-slate-400 hover:text-slate-600 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Order Success Modal */}
+      {orderSuccess && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl text-center overflow-hidden relative">
+            <div className="absolute inset-x-0 top-0 h-2 bg-green-400"></div>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-500 text-3xl mb-6 shadow-inner">
+              ✓
+            </div>
+            <h2 className="text-3xl font-black text-slate-900 mb-2">{copy.orderSuccessTitle}</h2>
+            <p className="text-slate-500 font-medium mb-6">{copy.orderSuccessLead}</p>
+            
+            <div className="bg-slate-50 rounded-xl py-4 mb-6 border border-slate-100">
+               <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Order Number</p>
+               <p className="text-4xl font-black text-slate-800">#{orderSuccess.orderId}</p>
+            </div>
+            
+            <button
+              onClick={() => setOrderSuccess(null)}
+              className="w-full rounded-2xl bg-green-500 py-4 text-lg font-bold text-white shadow-sm transition hover:bg-green-600 active:scale-[0.98]"
+            >
+              Start New Order
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
