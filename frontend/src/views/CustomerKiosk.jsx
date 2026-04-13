@@ -3,6 +3,7 @@ import api from '../api';
 import VoiceDictationButton from '../components/VoiceDictationButton';
 
 const KIOSK_CASHIER_ID = 3;
+const LS_CUSTOMER = 'reveille_customer_id';
 
 export default function CustomerKiosk() {
   const [menuItems, setMenuItems] = useState([]);
@@ -10,6 +11,12 @@ export default function CustomerKiosk() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
+
+  const [customers, setCustomers] = useState([]);
+  const [userId, setUserId] = useState(null);
+  const [points, setPoints] = useState(null);
+  const [loginTodayUtc, setLoginTodayUtc] = useState(false);
+  const [rec, setRec] = useState(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLog, setChatLog] = useState([]);
@@ -32,9 +39,82 @@ export default function CustomerKiosk() {
     assistantHint: 'Ask about flavors, ice, or toppings',
   });
 
+  const loadPoints = async (id) => {
+    if (id == null) {
+      setPoints(null);
+      setLoginTodayUtc(false);
+      return;
+    }
+    try {
+      const { data } = await api.get('/rewards/points', { params: { user_id: id } });
+      setPoints(data.points_balance);
+      setLoginTodayUtc(data.login_points_today_utc);
+    } catch {
+      setPoints(null);
+    }
+  };
+
+  const loadRec = async (id) => {
+    try {
+      const params = id != null ? { user_id: id } : {};
+      const { data } = await api.get('/recommendation/daily', { params });
+      setRec(data);
+    } catch {
+      setRec(null);
+    }
+  };
+
   useEffect(() => {
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    api
+      .get('/rewards/customers')
+      .then((res) => setCustomers(res.data || []))
+      .catch(() => setCustomers([]));
+    loadRec(null);
   }, []);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(LS_CUSTOMER);
+    if (!raw) return;
+    const id = Number(raw);
+    if (!Number.isFinite(id)) return;
+    (async () => {
+      try {
+        await api.get('/rewards/points', { params: { user_id: id } });
+        setUserId(id);
+        try {
+          await api.post('/rewards/login', { user_id: id });
+        } catch {
+          /* ignore */
+        }
+        await loadPoints(id);
+        await loadRec(id);
+      } catch {
+        localStorage.removeItem(LS_CUSTOMER);
+      }
+    })();
+  }, []);
+
+  const onPickCustomer = async (e) => {
+    const v = e.target.value;
+    if (!v) {
+      localStorage.removeItem(LS_CUSTOMER);
+      setUserId(null);
+      await loadPoints(null);
+      await loadRec(null);
+      return;
+    }
+    const id = Number(v);
+    localStorage.setItem(LS_CUSTOMER, String(id));
+    setUserId(id);
+    try {
+      await api.post('/rewards/login', { user_id: id });
+    } catch {
+      /* ignore */
+    }
+    await loadPoints(id);
+    await loadRec(id);
+  };
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -212,13 +292,19 @@ export default function CustomerKiosk() {
       price: i.default_price,
     }));
     try {
-      const res = await api.post('/orders', {
+      const body = {
         cashier_id: KIOSK_CASHIER_ID,
         total_amount,
         items: formattedItems,
-      });
-      alert(`${res.data.message} (Order #${res.data.id})`);
+      };
+      if (userId != null) body.customer_user_id = userId;
+      const res = await api.post('/orders', body);
+      let t = `${res.data.message} (#${res.data.id})`;
+      if (res.data.points_earned > 0) t += ` · +${res.data.points_earned} pts`;
+      alert(t);
       setCart([]);
+      if (userId != null) await loadPoints(userId);
+      await loadRec(userId);
     } catch (err) {
       alert(language === 'es' ? 'No se pudo completar el pago.' : 'Checkout failed. Please try again.');
       console.error(err);
@@ -262,6 +348,29 @@ export default function CustomerKiosk() {
               ))}
             </div>
           </div>
+          <div className="flex w-full flex-col gap-3 sm:w-72">
+            <label className="text-xs font-semibold uppercase tracking-wider text-violet-700">
+              Loyalty
+              <select
+                value={userId ?? ''}
+                onChange={onPickCustomer}
+                className="mt-1 w-full min-h-[48px] rounded-2xl border-2 border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-violet-950"
+              >
+                <option value="">Guest (no points)</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {userId != null && points != null && (
+              <p className="text-sm text-violet-900">
+                <span className="rounded-full bg-violet-600 px-2 py-0.5 font-bold text-white">{points} pts</span>
+                <span className="ml-2">{loginTodayUtc ? 'Login bonus today ✓' : 'Up to +5 login pts / UTC day'}</span>
+              </p>
+            )}
+          </div>
           <button
             type="button"
             onClick={handleTranslateToggle}
@@ -274,6 +383,30 @@ export default function CustomerKiosk() {
       </header>
 
       <main id="main-content" className={`relative z-10 mx-auto max-w-6xl px-5 py-10 sm:px-10 ${mainPad}`}>
+        {rec?.drink && (
+          <section className="mb-10 rounded-3xl border border-violet-200 bg-white/90 p-6 shadow-md">
+            <h2 className="font-display text-xl font-bold text-violet-950">Recommendation of the Day</h2>
+            <p className="mt-1 text-sm text-stone-600">{rec.why}</p>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-display text-lg font-bold text-violet-900">{rec.drink.name}</p>
+                <p className="text-sm text-stone-500">{rec.drink.category}</p>
+                <p className="mt-1 font-bold text-violet-800">${parseFloat(rec.drink.default_price).toFixed(2)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const m = menuItems.find((x) => x.id === rec.drink.id);
+                  if (m) addToCart(m);
+                }}
+                className="rounded-2xl bg-violet-600 px-6 py-3 text-sm font-bold text-white hover:bg-violet-500"
+              >
+                Add to order
+              </button>
+            </div>
+          </section>
+        )}
+
         <div className="space-y-14">
           {[...byCategory.entries()].map(([category, items]) => (
             <section key={category}>
