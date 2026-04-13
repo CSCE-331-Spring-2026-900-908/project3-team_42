@@ -1,6 +1,9 @@
 import axios from 'axios';
 
-const origin = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+// If we're deployed on Vercel/Prod, fallback to relative path ('') so it triggers vercel.json routing.
+// Locally it will fallback to http://localhost:3000
+const isProd = import.meta.env.PROD;
+const origin = import.meta.env.VITE_API_URL || (isProd ? '' : 'http://localhost:3000');
 
 /** localStorage key for customer kiosk JWT (set after Google sign-in). */
 export const CUSTOMER_SESSION_STORAGE_KEY = 'customer_kiosk_session';
