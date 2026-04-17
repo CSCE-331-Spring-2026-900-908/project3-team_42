@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 
 export default function MenuBoard() {
+  const navigate = useNavigate();
   const [weather, setWeather] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
 
@@ -46,9 +48,20 @@ export default function MenuBoard() {
       
       {/* Header section */}
       <header className="flex shrink-0 items-center justify-between border-b-2 border-stone-800 bg-[#0a0a0a] px-8 py-3">
-        <h1 className="text-4xl font-black uppercase tracking-tighter text-teal-500">
-          OUR MENU<span className="text-lg text-stone-500 ml-1">®</span>
-        </h1>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="flex items-center justify-center p-2 rounded-full hover:bg-stone-800 text-stone-400 hover:text-stone-200 transition"
+            aria-label="Back"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <h1 className="text-4xl font-black uppercase tracking-tighter text-teal-500">
+            OUR MENU<span className="text-lg text-stone-500 ml-1">®</span>
+          </h1>
+        </div>
         {weather && (
           <div className="flex items-center gap-4 rounded-xl border border-stone-800 bg-stone-900 px-4 py-2 text-sm font-bold shadow-2xl">
             <img src={weather.icon} alt={weather.shortForecast} className="w-8 h-8 rounded-full border border-stone-700" />
