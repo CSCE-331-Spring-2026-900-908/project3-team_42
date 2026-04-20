@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Modal from '../components/manager/Modal';
 import VoiceDictationButton from '../components/VoiceDictationButton';
@@ -30,6 +31,7 @@ function formatCurrency(n) {
 }
 
 export default function Manager() {
+  const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('reports'); // mirrors Project 2 "reports first" UX
   const [inventory, setInventory] = useState([]);
@@ -202,7 +204,18 @@ export default function Manager() {
     <div className="min-h-screen bg-gray-50 flex flex-col items-center">
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <header className="bg-teal-900 text-white w-full p-4 shadow-md flex justify-between items-center px-8">
-        <h1 className="text-2xl font-bold">Manager Dashboard</h1>
+        <div className="flex items-center gap-4">
+          <button 
+            onClick={() => navigate(-1)} 
+            className="p-2 hover:bg-teal-800 rounded transition"
+            aria-label="Back"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <h1 className="text-2xl font-bold">Manager Dashboard</h1>
+        </div>
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2">
             <img src={user.picture} alt="Profile" className="w-8 h-8 rounded-full" />

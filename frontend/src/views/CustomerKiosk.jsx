@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import api, { CUSTOMER_SESSION_STORAGE_KEY } from '../api';
 import VoiceDictationButton from '../components/VoiceDictationButton';
@@ -45,6 +46,7 @@ function defaultKioskCopy() {
 }
 
 export default function CustomerKiosk() {
+  const navigate = useNavigate();
   const [sessionUser, setSessionUser] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
 
@@ -427,7 +429,16 @@ export default function CustomerKiosk() {
 
   if (!sessionUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-violet-100/80 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)] px-5 py-16">
+      <div className="relative min-h-screen bg-gradient-to-b from-violet-100/80 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)] px-5 py-16">
+        <button 
+          onClick={() => navigate(-1)} 
+          className="absolute top-6 left-6 flex items-center justify-center p-3 rounded-full bg-white/60 hover:bg-white text-violet-900 shadow-sm backdrop-blur-sm transition"
+          aria-label="Back"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+        </button>
         <main className="mx-auto flex max-w-lg flex-col items-center rounded-3xl border border-violet-200/80 bg-white/90 p-10 shadow-xl shadow-violet-900/10 backdrop-blur-md">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Customer kiosk</p>
           <h1 className="mt-3 text-center font-display text-3xl font-bold text-violet-950">{copy.signInTitle}</h1>
@@ -469,9 +480,20 @@ export default function CustomerKiosk() {
       <div className="flex flex-1 flex-col px-6 pt-5 pb-0 relative z-10">
         {/* Top Bar */}
         <header className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-extrabold text-stone-900 tracking-tight">{copy.welcome}</h2>
-            <p className="text-sm text-stone-500 mt-0.5">{language === 'es' ? 'Elige tu bebida favorita' : 'Pick your favorite drink'}</p>
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => navigate(-1)} 
+              className="flex items-center justify-center p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
+              aria-label="Back"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+            <div>
+              <h2 className="text-3xl font-extrabold text-stone-900 tracking-tight">{copy.welcome}</h2>
+              <p className="text-sm text-stone-500 mt-0.5">{language === 'es' ? 'Elige tu bebida favorita' : 'Pick your favorite drink'}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5">
