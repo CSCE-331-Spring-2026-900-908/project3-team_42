@@ -30,12 +30,23 @@ function formatCurrency(n) {
   return `$${num.toFixed(2)}`;
 }
 
+function formatDateTime(value) {
+  if (!value) return '—';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value);
+  return d.toLocaleString();
+}
+
 export default function Manager() {
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState('reports'); // mirrors Project 2 "reports first" UX
   const [inventory, setInventory] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
   const [inventoryError, setInventoryError] = useState(null);
+  const [orderHistory, setOrderHistory] = useState([]);
+  const [orderHistoryLoading, setOrderHistoryLoading] = useState(false);
+  const [orderHistoryError, setOrderHistoryError] = useState(null);
 
   // Reports tab
   const [reportTab, setReportTab] = useState('productUsage'); // productUsage | xReport | zReport | salesReport
@@ -55,15 +66,42 @@ export default function Manager() {
     data: null,
   });
 
-  useEffect(() => {
-    if (!user || activeTab !== 'inventory') return;
+  const fetchInventory = () => {
+    setInventoryLoading(true);
     setInventoryError(null);
     api
       .get('/inventory')
-      .then((res) => setInventory(res.data))
+      .then((res) => setInventory(Array.isArray(res.data) ? res.data : []))
       .catch((err) => {
         setInventoryError(err.response?.data?.error || err.message || 'Failed to load inventory');
-      });
+      })
+      .finally(() => setInventoryLoading(false));
+  };
+
+  const fetchOrderHistory = () => {
+    setOrderHistoryLoading(true);
+    setOrderHistoryError(null);
+    api
+      .get('/orders/history', { params: { limit: 120 } })
+      .then((res) => setOrderHistory(Array.isArray(res.data?.orders) ? res.data.orders : []))
+      .catch((err) => {
+        setOrderHistoryError(err.response?.data?.error || err.message || 'Failed to load order history');
+      })
+      .finally(() => setOrderHistoryLoading(false));
+  };
+
+  useEffect(() => {
+    if (!user || activeTab !== 'inventory') return;
+    fetchInventory();
+    const id = window.setInterval(fetchInventory, 8000);
+    return () => window.clearInterval(id);
+  }, [user, activeTab]);
+
+  useEffect(() => {
+    if (!user || activeTab !== 'history') return;
+    fetchOrderHistory();
+    const id = window.setInterval(fetchOrderHistory, 5000);
+    return () => window.clearInterval(id);
   }, [user, activeTab]);
 
   useEffect(() => {
@@ -263,6 +301,20 @@ export default function Manager() {
           <button
             type="button"
             role="tab"
+            aria-selected={activeTab === 'history'}
+            aria-controls="tab-panel-main"
+            onClick={() => setActiveTab('history')}
+            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
+              activeTab === 'history'
+                ? 'bg-teal-700 text-white border-teal-700'
+                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
+            }`}
+          >
+            Order History
+          </button>
+          <button
+            type="button"
+            role="tab"
             aria-selected={activeTab === 'menu'}
             aria-controls="tab-panel-main"
             onClick={() => setActiveTab('menu')}
@@ -279,13 +331,23 @@ export default function Manager() {
         <div id="tab-panel-main" role="tabpanel" className="bg-white p-8 rounded shadow min-h-[500px] border border-gray-200">
           {activeTab === 'inventory' && (
             <>
-              <h2 className="text-2xl font-semibold mb-6 text-gray-800">Inventory Overview</h2>
+              <div className="mb-6 flex items-center justify-between gap-4">
+                <h2 className="text-2xl font-semibold text-gray-800">Inventory Overview</h2>
+                <button
+                  type="button"
+                  onClick={fetchInventory}
+                  className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                >
+                  Refresh
+                </button>
+              </div>
               {inventoryError && (
                 <p className="text-red-600 mb-4" role="alert">
                   {inventoryError}
                 </p>
               )}
-              {!inventoryError && inventory.length === 0 && <p className="text-gray-500">Loading inventory…</p>}
+              {inventoryLoading && <p className="text-gray-500 mb-4">Refreshing inventory…</p>}
+              {!inventoryError && !inventoryLoading && inventory.length === 0 && <p className="text-gray-500">No inventory rows found.</p>}
               {inventory.length > 0 && (
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left border-collapse">
@@ -323,6 +385,86 @@ export default function Manager() {
                       ))}
                     </tbody>
                   </table>
+                </div>
+              )}
+            </>
+          )}
+
+          {activeTab === 'history' && (
+            <>
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-gray-800">Order History</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Live order feed from `orders` and `order_items`, including kiosk and cashier checkouts.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchOrderHistory}
+                  className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {orderHistoryError && (
+                <p className="text-red-600 mb-4" role="alert">
+                  {orderHistoryError}
+                </p>
+              )}
+              {orderHistoryLoading && <p className="text-gray-500 mb-4">Refreshing order history…</p>}
+              {!orderHistoryError && !orderHistoryLoading && orderHistory.length === 0 && (
+                <p className="text-gray-500">No orders yet.</p>
+              )}
+
+              {orderHistory.length > 0 && (
+                <div className="space-y-4">
+                  {orderHistory.map((order) => (
+                    <section key={order.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="font-bold text-gray-900">
+                          Order #{order.id} <span className="text-sm text-gray-500">({order.status})</span>
+                        </p>
+                        <p className="font-semibold text-teal-800">{formatCurrency(order.total_amount)}</p>
+                      </div>
+                      <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-gray-600 sm:grid-cols-2 lg:grid-cols-4">
+                        <p>Created: {formatDateTime(order.created_at)}</p>
+                        <p>Cashier: {order.cashier_name || `ID ${order.cashier_id || '—'}`}</p>
+                        <p>Customer: {order.customer_email || 'Guest / walk-in'}</p>
+                        <p>Items: {Number(order.item_count || 0)}</p>
+                      </div>
+
+                      {Array.isArray(order.items) && order.items.length > 0 && (
+                        <div className="mt-3 overflow-x-auto">
+                          <table className="min-w-full text-left text-sm">
+                            <thead>
+                              <tr className="border-b border-gray-200 text-gray-700">
+                                <th className="py-2 pr-3">Item</th>
+                                <th className="py-2 pr-3 text-right">Qty</th>
+                                <th className="py-2 pr-3 text-right">Unit Price</th>
+                                <th className="py-2 text-right">Line Total</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {order.items.map((it, idx) => {
+                                const qty = Number(it.quantity || 0);
+                                const price = Number(it.price_at_time || 0);
+                                return (
+                                  <tr key={`${order.id}-${idx}`} className="border-b border-gray-100 text-gray-800">
+                                    <td className="py-2 pr-3">{it.item_name || `Menu #${it.menu_item_id}`}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">{qty}</td>
+                                    <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(price)}</td>
+                                    <td className="py-2 text-right tabular-nums">{formatCurrency(qty * price)}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </section>
+                  ))}
                 </div>
               )}
             </>
@@ -566,10 +708,12 @@ export default function Manager() {
             {(!modal.data?.hours || modal.data.hours.length === 0) ? (
               <p className="text-gray-600">No hourly sales data yet.</p>
             ) : (
-              <VerticalBarChart
-                data={(modal.data.hours || []).map((h) => ({ label: h.hourBucket, value: h.salesAmount }))}
-                valueFormatter={formatCurrency}
-              />
+              (() => {
+                const allHours = (modal.data.hours || []).map((h) => ({ label: h.hourBucket, value: h.salesAmount }));
+                const nonZeroHours = allHours.filter((h) => Number(h.value) > 0);
+                const chartData = nonZeroHours.length > 0 ? nonZeroHours : allHours;
+                return <VerticalBarChart data={chartData} valueFormatter={formatCurrency} />;
+              })()
             )}
           </>
         )}
@@ -582,7 +726,7 @@ export default function Manager() {
               <div className="space-y-3">
                 <p className="text-gray-800 font-medium">Revenue by item (sorted by revenue).</p>
                 <HorizontalBarChart
-                  data={(modal.data.items || []).map((it) => ({ label: it.itemName, value: it.revenue }))}
+                  data={(modal.data.items || []).slice(0, 12).map((it) => ({ label: it.itemName, value: it.revenue }))}
                   valueFormatter={formatCurrency}
                   height={320}
                 />

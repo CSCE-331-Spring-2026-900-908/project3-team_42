@@ -140,11 +140,42 @@ function buildMenuItems() {
 }
 
 function buildProductInventory(menuItems) {
-  // Just map random products to inventory for seed to satisfy foreign constraints
-  return menuItems.map(item => ({
-    ProductID: item.id,
-    InventoryID: 1
-  }));
+  // Build deterministic, category-aware ingredient mappings so product-usage/inventory reports
+  // reflect realistic consumption patterns instead of all products consuming one item.
+  const pairs = [];
+  const push = (productId, inventoryIds) => {
+    for (const invId of inventoryIds) {
+      pairs.push({ ProductID: productId, InventoryID: invId });
+    }
+  };
+
+  for (const item of menuItems) {
+    const name = String(item.name || '').toLowerCase();
+    const category = String(item.category || '').toLowerCase();
+
+    // Base packaging for all drinks.
+    const ingredients = [11, 12]; // cups + straws
+
+    // Tea bases
+    if (name.includes('jasmine')) ingredients.push(10);
+    else if (name.includes('green')) ingredients.push(3);
+    else ingredients.push(2); // default black tea
+
+    // Syrups/flavors
+    if (name.includes('mango')) ingredients.push(6);
+    if (name.includes('strawberry') || name.includes('berry')) ingredients.push(9);
+    if (name.includes('taro')) ingredients.push(7);
+    if (name.includes('brown sugar') || name.includes('tiger') || name.includes('honey')) ingredients.push(8);
+
+    // Dairy + boba families
+    if (category === 'milk tea' || category === 'matcha' || name.includes('milk')) ingredients.push(4);
+    if (name.includes('pearl') || name.includes('boba')) ingredients.push(1);
+    if (name.includes('lychee')) ingredients.push(5);
+
+    push(item.id, [...new Set(ingredients)]);
+  }
+
+  return pairs;
 }
 
 function buildTransactions(menuItems, count) {

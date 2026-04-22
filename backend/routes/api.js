@@ -21,6 +21,25 @@ function endExclusiveFromInclusiveDate(dateStr) {
     return endExclusive;
 }
 
+function normalizeOrderItems(rawItems) {
+    const list = Array.isArray(rawItems) ? rawItems : [];
+    return list
+        .map((item) => {
+            const menuItemId = Number(item?.menu_item_id);
+            const quantity = Number(item?.quantity);
+            const price = Number(item?.price);
+            if (!Number.isFinite(menuItemId) || !Number.isFinite(quantity) || !Number.isFinite(price)) return null;
+            if (quantity <= 0 || price < 0) return null;
+            return {
+                menu_item_id: menuItemId,
+                quantity,
+                customization: item?.customization || null,
+                price,
+            };
+        })
+        .filter(Boolean);
+}
+
 // Get all menu items
 router.get('/menu', async (req, res) => {
     try {
@@ -54,8 +73,18 @@ router.get('/employees', async (req, res) => {
 
 // Create an order
 router.post('/orders', async (req, res) => {
-    const { cashier_id, total_amount, items, placed_via } = req.body;
+    const { cashier_id, items, placed_via } = req.body;
     let customerAccountId = null;
+    const normalizedItems = normalizeOrderItems(items);
+    if (normalizedItems.length === 0) {
+        return res.status(400).json({ error: 'Order must include at least one valid item.' });
+    }
+
+    // Canonical source of truth for totals: derive from line items server-side.
+    const computedTotal = normalizedItems.reduce(
+        (sum, item) => sum + item.quantity * item.price,
+        0
+    );
 
     if (placed_via === 'customer_kiosk') {
         customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
@@ -66,12 +95,11 @@ router.post('/orders', async (req, res) => {
 
         const orderResult = await db.query(
             "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status) VALUES ($1, $2, $3, 'completed') RETURNING id",
-            [cashier_id, customerAccountId, total_amount]
+            [cashier_id, customerAccountId, computedTotal]
         );
         const orderId = orderResult.rows[0].id;
 
-        // items should be an array of: { menu_item_id, quantity, customization, price }
-        for (let item of items || []) {
+        for (const item of normalizedItems) {
             await db.query(
                 'INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time) VALUES ($1, $2, $3, $4, $5)',
                 [orderId, item.menu_item_id, item.quantity, item.customization || null, item.price]
@@ -94,10 +122,10 @@ router.post('/orders', async (req, res) => {
 
         await db.query(
             'INSERT INTO "Transaction" (TransactionID, TransactionTimestamp, TotalAmount) VALUES ($1, NOW(), $2)',
-            [transactionId, total_amount]
+            [transactionId, computedTotal]
         );
 
-        for (let item of items || []) {
+        for (const item of normalizedItems) {
             await db.query(
                 'INSERT INTO TransactionItem (TransactionItemID, TransactionID, ProductID, Quantity, PriceAtPurchase) VALUES ($1, $2, $3, $4, $5)',
                 [nextTransactionItemId, transactionId, item.menu_item_id, item.quantity, item.price]
@@ -140,9 +168,74 @@ router.post('/orders', async (req, res) => {
         );
 
         await db.query('COMMIT');
-        res.status(201).json({ id: orderId, message: 'Order created successfully' });
+        res.status(201).json({
+            id: orderId,
+            transaction_id: transactionId,
+            total_amount: Number(computedTotal.toFixed(2)),
+            message: 'Order created successfully',
+        });
     } catch (err) {
         await db.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Manager order history: live orders + seeded orders from orders/order_items.
+router.get('/orders/history', async (req, res) => {
+    try {
+        const rawLimit = Number(req.query.limit);
+        const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 500) : 100;
+
+        const sql = `
+            SELECT
+                o.id,
+                o.created_at,
+                o.status,
+                o.total_amount,
+                o.transaction_id,
+                o.cashier_id,
+                u.name AS cashier_name,
+                c.email AS customer_email,
+                COALESCE(SUM(oi.quantity), 0) AS item_count,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'menu_item_id', oi.menu_item_id,
+                            'item_name', mi.name,
+                            'quantity', oi.quantity,
+                            'price_at_time', oi.price_at_time,
+                            'customization', oi.customization
+                        )
+                        ORDER BY oi.id
+                    ) FILTER (WHERE oi.id IS NOT NULL),
+                    '[]'::json
+                ) AS items
+            FROM orders o
+            LEFT JOIN users u ON u.id = o.cashier_id
+            LEFT JOIN customer_accounts c ON c.id = o.customer_account_id
+            LEFT JOIN order_items oi ON oi.order_id = o.id
+            LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+            GROUP BY o.id, u.name, c.email
+            ORDER BY o.created_at DESC, o.id DESC
+            LIMIT $1
+        `;
+
+        const result = await db.query(sql, [limit]);
+        const orders = (result.rows || []).map((row) => ({
+            id: row.id,
+            created_at: row.created_at,
+            status: row.status,
+            total_amount: Number(row.total_amount || 0),
+            transaction_id: row.transaction_id,
+            cashier_id: row.cashier_id,
+            cashier_name: row.cashier_name,
+            customer_email: row.customer_email,
+            item_count: Number(row.item_count || 0),
+            items: Array.isArray(row.items) ? row.items : [],
+        }));
+
+        res.json({ orders });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
