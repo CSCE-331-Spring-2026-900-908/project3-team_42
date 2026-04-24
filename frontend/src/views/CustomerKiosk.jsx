@@ -64,6 +64,8 @@ export default function CustomerKiosk() {
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
+  const [pointsBalance, setPointsBalance] = useState(null);
+  const [loginAwardedToday, setLoginAwardedToday] = useState(false);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLog, setChatLog] = useState([]);
@@ -96,6 +98,34 @@ export default function CustomerKiosk() {
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
     api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
   }, [sessionUser]);
+
+  const refreshLoyalty = useCallback(async () => {
+    if (!sessionUser || sessionUser.isGuest) {
+      setPointsBalance(null);
+      setLoginAwardedToday(false);
+      return;
+    }
+    try {
+      const { data } = await api.get('/rewards/points');
+      setPointsBalance(Number(data?.points_balance ?? 0));
+      setLoginAwardedToday(Boolean(data?.login_points_today_utc));
+    } catch {
+      setPointsBalance(null);
+      setLoginAwardedToday(false);
+    }
+  }, [sessionUser]);
+
+  useEffect(() => {
+    if (!sessionUser || sessionUser.isGuest) return;
+    (async () => {
+      try {
+        await api.post('/rewards/login');
+      } catch {
+        /* ignore daily bonus failures */
+      }
+      await refreshLoyalty();
+    })();
+  }, [sessionUser, refreshLoyalty]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -222,6 +252,8 @@ export default function CustomerKiosk() {
     setOrderSuccess(null);
     setLanguage('en');
     setCopy(defaultKioskCopy());
+    setPointsBalance(null);
+    setLoginAwardedToday(false);
   };
 
   const handleContinueAsGuest = () => {
@@ -229,6 +261,8 @@ export default function CustomerKiosk() {
     setSessionUser({ isGuest: true, name: 'Guest' });
     setCart([]);
     setOrderSuccess(null);
+    setPointsBalance(null);
+    setLoginAwardedToday(false);
   };
 
   const handleTranslateToggle = async () => {
@@ -386,6 +420,7 @@ export default function CustomerKiosk() {
       setOrderSuccess({ orderId: res.data.id });
       setCart([]);
       setPaymentModalOpen(false);
+      await refreshLoyalty();
     } catch (err) {
       const status = err.response?.status;
       const target = language === 'es' ? 'es' : 'en';
@@ -496,6 +531,11 @@ export default function CustomerKiosk() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {!sessionUser.isGuest && pointsBalance != null && (
+              <div className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-800">
+                {pointsBalance} pts {loginAwardedToday ? '· bonus today' : '· +5 daily login'}
+              </div>
+            )}
             <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-bold text-stone-700">
                 {(sessionUser.name || sessionUser.email || '?').slice(0, 1).toUpperCase()}
