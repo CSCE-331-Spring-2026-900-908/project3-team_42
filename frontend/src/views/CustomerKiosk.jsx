@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import api, { CUSTOMER_SESSION_STORAGE_KEY } from '../api';
-import VoiceDictationButton from '../components/VoiceDictationButton';
 
 const KIOSK_CASHIER_ID = 3;
 
@@ -60,7 +59,6 @@ export default function CustomerKiosk() {
   const [orderSuccess, setOrderSuccess] = useState(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const orderSuccessCtaRef = useRef(null);
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
@@ -70,7 +68,6 @@ export default function CustomerKiosk() {
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const chatEndRef = useRef(null);
-  const chatPanelRef = useRef(null);
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
   const googleSignInAvailable = Boolean(googleClientId);
@@ -103,59 +100,12 @@ export default function CustomerKiosk() {
 
   useEffect(() => {
     if (!orderSuccess) return;
-    orderSuccessCtaRef.current?.focus();
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOrderSuccess(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [orderSuccess]);
-
-  useEffect(() => {
-    if (!orderSuccess) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => {
       document.body.style.overflow = prev;
     };
   }, [orderSuccess]);
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape' && chatOpen) setChatOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [chatOpen]);
-
-  const getChatFocusable = useCallback(() => {
-    if (!chatPanelRef.current) return [];
-    return Array.from(
-      chatPanelRef.current.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!chatOpen) return;
-    const trap = (e) => {
-      if (e.key !== 'Tab') return;
-      const els = getChatFocusable();
-      if (els.length === 0) return;
-      const first = els[0];
-      const last = els[els.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', trap);
-    return () => window.removeEventListener('keydown', trap);
-  }, [chatOpen, getChatFocusable]);
 
   const categories = useMemo(() => {
     const cats = new Set(menuItems.map(item => item.category || 'Specialty'));
@@ -662,7 +612,6 @@ export default function CustomerKiosk() {
       </div>
 
       <div
-        ref={chatPanelRef}
         className={`fixed bottom-6 right-96 mr-6 z-50 w-[380px] origin-bottom-right transition ${
           chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
         }`}
@@ -683,8 +632,7 @@ export default function CustomerKiosk() {
             <div ref={chatEndRef} />
           </div>
           <form onSubmit={handleChatSubmit} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
-            <VoiceDictationButton lang={language === 'es' ? 'es-ES' : 'en-US'} onTranscript={(text) => setChatInput((prev) => prev + text)} size="sm" />
-            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Habla o escribe tu pregunta…' : 'Speak or type...'} />
+            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Escribe tu pregunta…' : 'Type your question...'} />
             <button type="submit" disabled={isChatting} className="min-h-[44px] rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {language === 'es' ? 'Enviar' : 'Send'}
             </button>

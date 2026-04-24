@@ -51,7 +51,6 @@ const modes = [
 export default function Portal() {
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#fffbf7] font-[family-name:var(--font-ui)]">
-      <a href="#main-content" className="skip-link">Skip to main content</a>
       <div
         className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(167,139,250,0.18),transparent),radial-gradient(ellipse_60%_40%_at_100%_50%,rgba(45,212,191,0.12),transparent),radial-gradient(ellipse_50%_30%_at_0%_80%,rgba(251,191,36,0.1),transparent)]"
         aria-hidden="true"

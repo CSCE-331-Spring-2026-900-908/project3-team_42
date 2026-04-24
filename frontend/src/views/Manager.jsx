@@ -4,7 +4,6 @@ import { jwtDecode } from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Modal from '../components/manager/Modal';
-import VoiceDictationButton from '../components/VoiceDictationButton';
 import {
   DonutChart,
   HorizontalBarChart,
@@ -185,7 +184,6 @@ export default function Manager() {
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-6">
-        <a href="#main-content" className="skip-link">Skip to main content</a>
         <h1 id="main-content" className="text-4xl font-extrabold text-blue-900">Manager Access</h1>
         <p className="text-gray-600 text-lg">Please authenticate with an authorized Google account.</p>
         <div className="bg-white p-8 rounded shadow-lg border-2 border-blue-100 flex justify-center">
@@ -202,7 +200,6 @@ export default function Manager() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center">
-      <a href="#main-content" className="skip-link">Skip to main content</a>
       <header className="bg-teal-900 text-white w-full p-4 shadow-md flex justify-between items-center px-8">
         <div className="flex items-center gap-4">
           <button 
@@ -465,20 +462,14 @@ export default function Manager() {
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                       <div className="w-full sm:w-[280px]">
                         <label htmlFor="z-signature" className="block text-sm font-semibold text-gray-700 mb-1">Signature</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            id="z-signature"
-                            type="text"
-                            value={signature}
-                            onChange={(e) => setSignature(e.target.value)}
-                            placeholder="Your name or initials"
-                            className="rounded-lg border border-stone-200 px-3 py-2 text-sm flex-1"
-                          />
-                          <VoiceDictationButton
-                            onTranscript={(text) => setSignature((prev) => prev + text)}
-                            size="sm"
-                          />
-                        </div>
+                        <input
+                          id="z-signature"
+                          type="text"
+                          value={signature}
+                          onChange={(e) => setSignature(e.target.value)}
+                          placeholder="Your name or initials"
+                          className="rounded-lg border border-stone-200 px-3 py-2 text-sm w-full"
+                        />
                       </div>
                       <button
                         type="button"
