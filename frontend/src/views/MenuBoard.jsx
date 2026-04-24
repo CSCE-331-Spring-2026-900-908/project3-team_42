@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 
 export default function MenuBoard() {
+  const navigate = useNavigate();
   const [weather, setWeather] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
 
@@ -11,7 +13,10 @@ export default function MenuBoard() {
       .catch(err => console.error("Weather fetch error", err));
 
     api.get('/menu')
-      .then(res => setMenuItems(res.data))
+      .then(res => {
+        if (Array.isArray(res.data)) setMenuItems(res.data);
+        else console.error("Invalid menu response:", res.data);
+      })
       .catch(err => console.error("Menu fetch error", err));
   }, []);
 
@@ -40,12 +45,23 @@ export default function MenuBoard() {
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-black font-sans text-stone-100">
       <a href="#main-content" className="sr-only focus:not-sr-only">Skip to main content</a>
-      
+
       {/* Header section */}
       <header className="flex shrink-0 items-center justify-between border-b-2 border-stone-800 bg-[#0a0a0a] px-8 py-3">
-        <h1 className="text-4xl font-black uppercase tracking-tighter text-teal-500">
-          OUR MENU<span className="text-lg text-stone-500 ml-1">®</span>
-        </h1>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center justify-center p-2 rounded-full hover:bg-stone-800 text-stone-400 hover:text-stone-200 transition"
+            aria-label="Back"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+          </button>
+          <h1 className="text-4xl font-black uppercase tracking-tighter text-teal-500">
+            OUR MENU<span className="text-lg text-stone-500 ml-1">®</span>
+          </h1>
+        </div>
         {weather && (
           <div className="flex items-center gap-4 rounded-xl border border-stone-800 bg-stone-900 px-4 py-2 text-sm font-bold shadow-2xl">
             <img src={weather.icon} alt={weather.shortForecast} className="w-8 h-8 rounded-full border border-stone-700" />
@@ -124,43 +140,43 @@ export default function MenuBoard() {
 
       {/* Customization Legend Bottom Footer */}
       <footer className="shrink-0 border-t-[3px] border-stone-800 bg-[#0a0a0a] px-12 py-3">
-         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-6 xl:gap-8">
-            <div className="flex flex-col gap-2 font-medium flex-1 text-sm text-stone-300">
-               <div className="flex flex-wrap items-center gap-3">
-                  <span className="w-36 shrink-0 text-right text-sm font-black uppercase tracking-widest text-[#a1a1aa]">Ice Level</span>
-                  <span>Regular &bull; Less &bull; No Ice</span>
-               </div>
-               <div className="flex flex-wrap items-center gap-3">
-                  <span className="w-36 shrink-0 text-right text-sm font-black uppercase tracking-widest text-[#a1a1aa]">Sweetness Level</span>
-                  <span className="flex flex-wrap gap-x-2">
-                    <span>Normal 100% &bull;</span>
-                    <span>Less 80% &bull;</span>
-                    <span>Half 50% &bull;</span>
-                    <span>Light 30% &bull;</span>
-                    <span>No Sugar 0%</span>
-                  </span>
-               </div>
+        <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-6 xl:gap-8">
+          <div className="flex flex-col gap-2 font-medium flex-1 text-sm text-stone-300">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="w-36 shrink-0 text-right text-sm font-black uppercase tracking-widest text-[#a1a1aa]">Ice Level</span>
+              <span>Regular &bull; Less &bull; No Ice</span>
             </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="w-36 shrink-0 text-right text-sm font-black uppercase tracking-widest text-[#a1a1aa]">Sweetness Level</span>
+              <span className="flex flex-wrap gap-x-2">
+                <span>Normal 100% &bull;</span>
+                <span>Less 80% &bull;</span>
+                <span>Half 50% &bull;</span>
+                <span>Light 30% &bull;</span>
+                <span>No Sugar 0%</span>
+              </span>
+            </div>
+          </div>
 
-            <div className="flex gap-4 flex-1 xl:justify-end text-sm text-stone-300 mt-1 xl:mt-0">
-               <span className="shrink-0 font-black uppercase tracking-widest text-[#a1a1aa]">Topping</span>
-               <div className="grid grid-cols-2 gap-x-6 gap-y-1 lg:grid-cols-4">
-                  <span>Pearls (Boba)</span>
-                  <span>Lychee Jelly</span>
-                  <span>Crystal Boba</span>
-                  <span>Ice Cream</span>
-                  <span>Coffee Jelly</span>
-                  <span>Honey Jelly</span>
-                  <span>Mango Popping Boba</span>
-                  <span>Creama</span>
-                  <span>Pudding</span>
-                  <span className="col-span-2">Strawberry Popping Boba</span>
-               </div>
+          <div className="flex gap-4 flex-1 xl:justify-end text-sm text-stone-300 mt-1 xl:mt-0">
+            <span className="shrink-0 font-black uppercase tracking-widest text-[#a1a1aa]">Topping</span>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-1 lg:grid-cols-4">
+              <span>Pearls (Boba)</span>
+              <span>Lychee Jelly</span>
+              <span>Crystal Boba</span>
+              <span>Ice Cream</span>
+              <span>Coffee Jelly</span>
+              <span>Honey Jelly</span>
+              <span>Mango Popping Boba</span>
+              <span>Creama</span>
+              <span>Pudding</span>
+              <span className="col-span-2">Strawberry Popping Boba</span>
             </div>
-         </div>
-         <p className="mt-3 text-center text-[10px] text-stone-600 uppercase font-semibold">
-            Food Allergy Notice: We cannot guarantee that any of our products are free from allergens. (Including dairy, eggs, soy, tree nuts, wheat and others) as we use shared equipment to store, prepare and serve them.
-         </p>
+          </div>
+        </div>
+        <p className="mt-3 text-center text-[10px] text-stone-600 uppercase font-semibold">
+          Food Allergy Notice: We cannot guarantee that any of our products are free from allergens. (Including dairy, eggs, soy, tree nuts, wheat and others) as we use shared equipment to store, prepare and serve them.
+        </p>
       </footer>
     </div>
   );

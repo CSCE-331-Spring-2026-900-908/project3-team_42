@@ -1,7 +1,9 @@
 import { useMemo, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
 
 export default function Cashier() {
+  const navigate = useNavigate();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinEntry, setPinEntry] = useState('');
   
@@ -11,7 +13,10 @@ export default function Cashier() {
   const cashierId = 2;
 
   useEffect(() => {
-    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    api.get('/menu').then((res) => {
+      if (Array.isArray(res.data)) setMenuItems(res.data);
+      else console.error("Invalid menu response:", res.data);
+    }).catch(console.error);
   }, []);
 
   const categories = useMemo(() => {
@@ -199,13 +204,26 @@ export default function Cashier() {
   }
 
   return (
-    <div className="flex h-screen flex-row bg-[#f8fafc] font-sans overflow-hidden text-slate-800">
+    <div className="flex h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden">
       
-      {/* Main Left Menu Section */}
-      <div className="flex flex-1 flex-col p-4 pr-6">
+      {/* Left Main Interface */}
+      <div className="flex-1 flex flex-col p-4 mr-4">
+        
+        {/* Header with Title and Category Filter */}
         <header className="mb-4">
-          <h2 className="text-2xl font-black text-slate-900 tracking-tight">Menu</h2>
-          <div className="mt-2 flex flex-wrap gap-2">
+          <div className="flex items-center gap-4 mb-3">
+            <button 
+              onClick={() => navigate(-1)} 
+              className="flex items-center justify-center p-2 rounded-full hover:bg-slate-200 transition"
+              aria-label="Back"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+            </button>
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight">Menu</h1>
+          </div>
+          <div className="flex flex-wrap gap-2">
             {categories.map(cat => (
               <button
                 key={cat}
