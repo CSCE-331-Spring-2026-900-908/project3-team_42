@@ -54,5 +54,6 @@ if (process.env.DATABASE_URL || process.env.POSTGRES_URL) {
 
 module.exports = {
   query: (text, params) => pool.query(text, params),
+  connect: () => pool.connect(),
   end: () => pool.end(),
 };
