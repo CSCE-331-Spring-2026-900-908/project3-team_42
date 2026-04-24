@@ -3,6 +3,7 @@ const router = express.Router();
 const db = require('../db/config');
 const { GoogleGenAI } = require('@google/genai');
 const { tryGetCustomerIdFromAuthHeader } = require('../lib/customerSession');
+const loyalty = require('../loyalty');
 
 const TAX_RATE = 0.0825;
 
@@ -61,10 +62,20 @@ router.post('/orders', async (req, res) => {
         customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
     }
 
+    const client = await db.connect();
     try {
-        await db.query('BEGIN');
+        await client.query('BEGIN');
 
-        const orderResult = await db.query(
+        if (customerAccountId != null) {
+            const ok = await loyalty.assertCustomerAccount(client, customerAccountId);
+            if (!ok) {
+                await client.query('ROLLBACK');
+                return res.status(401).json({ error: 'Invalid customer session' });
+            }
+            customerAccountId = ok;
+        }
+
+        const orderResult = await client.query(
             "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status) VALUES ($1, $2, $3, 'completed') RETURNING id",
             [cashier_id, customerAccountId, total_amount]
         );
@@ -72,7 +83,7 @@ router.post('/orders', async (req, res) => {
 
         // items should be an array of: { menu_item_id, quantity, customization, price }
         for (let item of items || []) {
-            await db.query(
+            await client.query(
                 'INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time) VALUES ($1, $2, $3, $4, $5)',
                 [orderId, item.menu_item_id, item.quantity, item.customization || null, item.price]
             );
@@ -82,29 +93,29 @@ router.post('/orders', async (req, res) => {
         // 1) Create "Transaction" row
         // 2) Create TransactionItem rows
         // 3) Deduct ingredient inventory using ProductInventory mapping
-        const txIdRes = await db.query(
+        const txIdRes = await client.query(
             'SELECT COALESCE(MAX(TransactionID), 0) + 1 AS next_id FROM "Transaction"'
         );
         const transactionId = txIdRes.rows[0].next_id;
 
-        const txItemIdRes = await db.query(
+        const txItemIdRes = await client.query(
             'SELECT COALESCE(MAX(TransactionItemID), 0) + 1 AS next_id FROM TransactionItem'
         );
         let nextTransactionItemId = txItemIdRes.rows[0].next_id;
 
-        await db.query(
+        await client.query(
             'INSERT INTO "Transaction" (TransactionID, TransactionTimestamp, TotalAmount) VALUES ($1, NOW(), $2)',
             [transactionId, total_amount]
         );
 
         for (let item of items || []) {
-            await db.query(
+            await client.query(
                 'INSERT INTO TransactionItem (TransactionItemID, TransactionID, ProductID, Quantity, PriceAtPurchase) VALUES ($1, $2, $3, $4, $5)',
                 [nextTransactionItemId, transactionId, item.menu_item_id, item.quantity, item.price]
             );
 
             // Deduct ingredients: each product consumes linked inventory items by quantity.
-            await db.query(
+            await client.query(
                 `UPDATE inventory inv
                  SET quantity = GREATEST(0, inv.quantity - $1)
                  WHERE inv.id IN (
@@ -119,7 +130,7 @@ router.post('/orders', async (req, res) => {
         }
 
         // Ensure TotalAmount matches TransactionItem revenue (avoids float rounding drift).
-        await db.query(
+        await client.query(
             `
             UPDATE "Transaction" t
             SET TotalAmount = sub.total_amount
@@ -134,43 +145,62 @@ router.post('/orders', async (req, res) => {
             [transactionId]
         );
 
-        await db.query(
+        await client.query(
             'UPDATE orders SET transaction_id = $1 WHERE id = $2',
             [transactionId, orderId]
         );
 
-        await db.query('COMMIT');
-        res.status(201).json({ id: orderId, message: 'Order created successfully' });
+        let points = { points_earned: 0, breakdown: null };
+        if (customerAccountId != null) {
+            points = await loyalty.awardOrderPoints(client, customerAccountId, orderId, total_amount);
+        }
+
+        await client.query('COMMIT');
+        res.status(201).json({
+            id: orderId,
+            message: 'Order created successfully',
+            points_earned: points.points_earned,
+            points_breakdown: points.breakdown,
+        });
     } catch (err) {
-        await db.query('ROLLBACK');
+        try {
+            await client.query('ROLLBACK');
+        } catch {
+            /* ignore */
+        }
         res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
     }
 });
 
 // Cancel an order (so manager reports exclude it)
 router.post('/orders/:orderId/cancel', async (req, res) => {
     const orderId = Number(req.params.orderId);
+    const client = await db.connect();
     try {
-        await db.query('BEGIN');
+        await client.query('BEGIN');
 
-        const orderRes = await db.query(
-            'SELECT id, status, transaction_id FROM orders WHERE id = $1',
+        const orderRes = await client.query(
+            'SELECT id, status, transaction_id FROM orders WHERE id = $1 FOR UPDATE',
             [orderId]
         );
 
         if (orderRes.rows.length === 0) {
-            await db.query('ROLLBACK');
+            await client.query('ROLLBACK');
             return res.status(404).json({ error: 'Order not found' });
         }
 
         const order = orderRes.rows[0];
         if (order.status === 'cancelled') {
-            await db.query('ROLLBACK');
+            await client.query('ROLLBACK');
             return res.status(400).json({ error: 'Order already cancelled' });
         }
 
+        await loyalty.reverseOrderPoints(client, orderId);
+
         // Reverse inventory deductions using order_items + ProductInventory mapping.
-        await db.query(
+        await client.query(
             `
             UPDATE inventory inv
             SET quantity = inv.quantity + used.used_qty
@@ -187,23 +217,101 @@ router.post('/orders/:orderId/cancel', async (req, res) => {
         );
 
         // Mark the order cancelled for UI/history.
-        await db.query(
+        await client.query(
             "UPDATE orders SET status = 'cancelled' WHERE id = $1",
             [orderId]
         );
 
         // Remove the corresponding Project 2-style transaction so reports exclude it.
         if (order.transaction_id) {
-            await db.query(
+            await client.query(
                 'DELETE FROM "Transaction" WHERE TransactionID = $1',
                 [order.transaction_id]
             );
         }
 
-        await db.query('COMMIT');
+        await client.query('COMMIT');
         res.json({ id: orderId, message: 'Order cancelled successfully' });
     } catch (err) {
-        await db.query('ROLLBACK');
+        try {
+            await client.query('ROLLBACK');
+        } catch {
+            /* ignore */
+        }
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+router.post('/rewards/login', async (req, res) => {
+    const customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
+    if (!customerAccountId) {
+        return res.status(401).json({ error: 'Customer session required' });
+    }
+
+    const client = await db.connect();
+    try {
+        const ok = await loyalty.assertCustomerAccount(client, customerAccountId);
+        if (!ok) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+
+        await client.query('BEGIN');
+        const login = await loyalty.awardDailyLogin(client, customerAccountId);
+        const b = await client.query('SELECT points_balance FROM customer_accounts WHERE id = $1', [customerAccountId]);
+        await client.query('COMMIT');
+
+        res.json({
+            customer_account_id: customerAccountId,
+            login_awarded: login.awarded,
+            login_points: login.points,
+            award_date_utc: login.award_date_utc,
+            points_balance: Number(b.rows[0]?.points_balance ?? 0),
+        });
+    } catch (err) {
+        try {
+            await client.query('ROLLBACK');
+        } catch {
+            /* ignore */
+        }
+        res.status(500).json({ error: err.message });
+    } finally {
+        client.release();
+    }
+});
+
+router.get('/rewards/points', async (req, res) => {
+    const customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
+    if (!customerAccountId) {
+        return res.status(401).json({ error: 'Customer session required' });
+    }
+
+    try {
+        const ok = await loyalty.assertCustomerAccount(db, customerAccountId);
+        if (!ok) {
+            return res.status(404).json({ error: 'Customer not found' });
+        }
+        const b = await db.query('SELECT points_balance, name, email FROM customer_accounts WHERE id = $1', [customerAccountId]);
+        const day = new Date().toISOString().slice(0, 10);
+        const got = await db.query(
+            'SELECT 1 FROM login_points_daily WHERE customer_account_id = $1 AND award_date = $2::date',
+            [customerAccountId, day]
+        );
+        const act = await db.query(
+            `SELECT activity_type, points_delta, order_id, created_at
+             FROM points_ledger WHERE customer_account_id = $1 ORDER BY created_at DESC LIMIT 12`,
+            [customerAccountId]
+        );
+        res.json({
+            customer_account_id: customerAccountId,
+            points_balance: Number(b.rows[0]?.points_balance ?? 0),
+            name: b.rows[0]?.name,
+            email: b.rows[0]?.email,
+            login_points_today_utc: got.rows.length > 0,
+            recent: act.rows,
+        });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
