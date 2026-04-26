@@ -902,6 +902,9 @@ export default function Manager() {
                     <p className="text-gray-500 mb-5">
                       Close the business day and get a full summary. Enter your signature before running.
                     </p>
+                    <p className="text-amber-700 text-sm mb-4">
+                      Running Z-report closes the current business window. After that, X/Z totals can show $0.00 until new orders are placed.
+                    </p>
 
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                       <div className="w-full sm:w-[280px]">
@@ -1029,6 +1032,28 @@ export default function Manager() {
                   valueFormatter={formatCurrency}
                   height={320}
                 />
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm border-collapse">
+                    <thead>
+                      <tr className="border-b border-gray-200 text-gray-700">
+                        <th className="py-2 pr-3">Item</th>
+                        <th className="py-2 pr-3 text-right">Qty Sold</th>
+                        <th className="py-2 pr-3 text-right">Avg Unit Price</th>
+                        <th className="py-2 text-right">Revenue</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(modal.data.items || []).slice(0, 20).map((it, idx) => (
+                        <tr key={`${it.itemName}-${idx}`} className="border-b border-gray-100 text-gray-800">
+                          <td className="py-2 pr-3">{it.itemName || 'Unnamed item'}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums">{Number(it.quantitySold || 0)}</td>
+                          <td className="py-2 pr-3 text-right tabular-nums">{formatCurrency(it.averageUnitPrice || 0)}</td>
+                          <td className="py-2 text-right tabular-nums">{formatCurrency(it.revenue || 0)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </>
@@ -1065,28 +1090,24 @@ export default function Manager() {
 
               <div className="space-y-3">
                 <p className="text-gray-800 font-bold">Payment methods</p>
-                {(() => {
-                  const methods = modal.data?.paymentMethods || [];
-                  if (methods.length <= 1) {
-                    const amount = Number(methods[0]?.totalAmount || modal.data?.salesTotal || 0);
-                    return (
-                      <div className="rounded-lg border border-gray-200 p-3 bg-gray-50">
-                        <p className="text-sm text-gray-700 font-semibold">Unspecified: {formatCurrency(amount)}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          Payment type detail is not captured yet, so Z-report shows one aggregate bucket.
-                        </p>
-                      </div>
-                    );
-                  }
-                  return (
-                    <DonutChart
-                      data={methods.map((pm) => ({
-                        name: pm.methodName,
-                        value: pm.totalAmount,
-                      }))}
-                    />
-                  );
-                })()}
+                <DonutChart
+                  data={(modal.data?.paymentMethods || []).map((pm) => ({
+                    name: pm.methodName,
+                    value: pm.totalAmount,
+                  }))}
+                />
+                <VerticalBarChart
+                  data={[
+                    { label: 'Sales', value: Number(modal.data?.salesTotal || 0) },
+                    { label: 'Tax', value: Number(modal.data?.taxAmount || 0) },
+                    { label: 'Cash', value: Number(modal.data?.totalCash || 0) },
+                  ]}
+                  valueFormatter={formatCurrency}
+                  height={240}
+                />
+                <p className="text-xs text-gray-500">
+                  Payment type detail is not captured yet, so payment chart may show a single "Unspecified" bucket.
+                </p>
               </div>
             </div>
           </>

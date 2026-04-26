@@ -592,7 +592,11 @@ router.get('/reports/sales-by-item', async (req, res) => {
             SELECT
                 COALESCE(mi.name, CONCAT('Item #', ti.ProductID::text)) AS item_name,
                 COALESCE(SUM(ti.Quantity), 0) AS qty_sold,
-                COALESCE(SUM(ti.Quantity * ti.PriceAtPurchase), 0) AS revenue
+                COALESCE(SUM(ti.Quantity * ti.PriceAtPurchase), 0) AS revenue,
+                COALESCE(
+                    SUM(ti.Quantity * ti.PriceAtPurchase) / NULLIF(SUM(ti.Quantity), 0),
+                    0
+                ) AS avg_unit_price
             FROM TransactionItem ti
             JOIN "Transaction" t ON t.TransactionID = ti.TransactionID
             LEFT JOIN menu_items mi ON mi.id = ti.ProductID
@@ -606,6 +610,7 @@ router.get('/reports/sales-by-item', async (req, res) => {
             itemName: r.item_name,
             quantitySold: Number(r.qty_sold || 0),
             revenue: Number(r.revenue || 0),
+            averageUnitPrice: Number(r.avg_unit_price || 0),
         }));
 
         res.json({ items, from, to });
