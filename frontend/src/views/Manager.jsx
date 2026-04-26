@@ -719,8 +719,8 @@ export default function Manager() {
   if (!user) {
     if (!googleClientId) {
       return (
-        <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-6 px-4">
-          <h1 className="text-3xl font-extrabold text-teal-900">Manager Access</h1>
+        <div className="min-h-screen bg-gradient-to-br from-sky-600 to-blue-700 flex flex-col items-center justify-center space-y-6 px-4">
+          <h1 className="text-3xl font-extrabold text-white">Manager Access</h1>
           <p className="text-gray-700 text-lg max-w-xl text-center">
             Google OAuth is not configured. Set <code>VITE_GOOGLE_CLIENT_ID</code> in{' '}
             <code>frontend/.env.local</code>, then restart the dev server.
@@ -730,28 +730,49 @@ export default function Manager() {
     }
 
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-6">
-        <h1 id="main-content" className="text-4xl font-extrabold text-blue-900">Manager Access</h1>
-        <p className="text-gray-600 text-lg">Please authenticate with an authorized Google account.</p>
-        <div className="bg-white p-8 rounded shadow-lg border-2 border-blue-100 flex justify-center">
-          <GoogleLogin
-            onSuccess={handleLogin}
-            onError={() => {
-              console.log('Login Failed');
-            }}
-          />
+      <div className="min-h-screen bg-gradient-to-br from-sky-600 to-blue-700 flex flex-col items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <div className="mb-8 text-center">
+            <img src="/logo.png" alt="Reveille Boba" className="mx-auto mb-4 h-20 w-20 object-contain drop-shadow-lg" />
+            <h1 id="main-content" className="text-4xl font-extrabold text-white tracking-tight">Manager Access</h1>
+            <p className="mt-2 text-sky-100 text-base">Sign in with your authorized Google account to continue.</p>
+          </div>
+          <div className="bg-white/95 backdrop-blur rounded-2xl shadow-2xl p-8 border border-white/40">
+            <div className="mb-6 grid grid-cols-3 gap-3 text-center text-xs text-gray-500">
+              <div className="rounded-lg bg-sky-50 border border-sky-100 p-3">
+                <p className="text-lg mb-1">📊</p>
+                <p className="font-semibold text-blue-700">Reports</p>
+              </div>
+              <div className="rounded-lg bg-sky-50 border border-sky-100 p-3">
+                <p className="text-lg mb-1">👥</p>
+                <p className="font-semibold text-blue-700">Staff</p>
+              </div>
+              <div className="rounded-lg bg-sky-50 border border-sky-100 p-3">
+                <p className="text-lg mb-1">🏪</p>
+                <p className="font-semibold text-blue-700">Operations</p>
+              </div>
+            </div>
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleLogin}
+                onError={() => {
+                  console.log('Login Failed');
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center">
-      <header className="bg-teal-900 text-white w-full p-4 shadow-md flex justify-between items-center px-8">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center">
+      <header className="bg-gradient-to-r from-sky-600 to-blue-700 text-white w-full p-4 shadow-lg flex justify-between items-center px-8">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate(-1)} 
-            className="p-2 hover:bg-teal-800 rounded transition"
+            className="p-2 hover:bg-sky-700 rounded transition"
             aria-label="Back"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -763,170 +784,65 @@ export default function Manager() {
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2">
             <img src={user.picture} alt="Profile" className="w-8 h-8 rounded-full" />
-            <span className="text-teal-200">Welcome, {user.name}</span>
+            <span className="text-sky-200">Welcome, {user.name}</span>
           </div>
           <button
             onClick={() => setUser(null)}
-            className="hover:bg-teal-800 px-4 py-2 rounded font-bold bg-teal-700 shadow-sm border border-teal-500 transition"
+            className="hover:bg-sky-700 px-4 py-2 rounded-lg font-semibold bg-white/20 shadow-sm border border-white/30 transition text-white text-sm"
           >
             Logout
           </button>
         </div>
       </header>
 
-      <main id="main-content" className="p-8 w-full max-w-7xl">
-        <div className="flex flex-wrap gap-2 mb-6 border-b pb-4" role="tablist" aria-label="Manager sections">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'reports'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('reports')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'reports'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Reports
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'inventory'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('inventory')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'inventory'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Inventory
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'history'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('history')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'history'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Order History
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'menu'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('menu')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'menu'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Menu Items
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'employees'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('employees')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'employees'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Employees
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'schedule'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('schedule')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'schedule'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Shift Schedules
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'operations'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('operations')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'operations'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Operations
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'finance'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('finance')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'finance'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Finance Controls
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'insights'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('insights')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'insights'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Insights
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'audit'}
-            aria-controls="tab-panel-main"
-            onClick={() => setActiveTab('audit')}
-            className={`min-h-[44px] px-6 py-2 shadow-sm font-bold rounded border ${
-              activeTab === 'audit'
-                ? 'bg-teal-700 text-white border-teal-700'
-                : 'text-teal-700 hover:bg-teal-50 bg-white border-teal-200'
-            }`}
-          >
-            Audit & Export
-          </button>
+      <main id="main-content" className="p-6 w-full max-w-7xl">
+        {/* Tab navigation */}
+        <div className="mb-6 overflow-x-auto">
+          <div className="flex gap-1.5 min-w-max bg-white border border-blue-100 rounded-xl p-1.5 shadow-sm" role="tablist" aria-label="Manager sections">
+            {[
+              { key: 'reports',    icon: '📊', label: 'Reports' },
+              { key: 'inventory',  icon: '📦', label: 'Inventory' },
+              { key: 'history',    icon: '🧾', label: 'Orders' },
+              { key: 'menu',       icon: '🍵', label: 'Menu' },
+              { key: 'employees',  icon: '👥', label: 'Employees' },
+              { key: 'schedule',   icon: '📅', label: 'Schedules' },
+              { key: 'operations', icon: '🏪', label: 'Operations' },
+              { key: 'finance',    icon: '💰', label: 'Finance' },
+              { key: 'insights',   icon: '💡', label: 'Insights' },
+              { key: 'audit',      icon: '🔍', label: 'Audit' },
+            ].map(({ key, icon, label }) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={activeTab === key}
+                aria-controls="tab-panel-main"
+                onClick={() => setActiveTab(key)}
+                className={`flex items-center gap-1.5 min-h-[40px] px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                  activeTab === key
+                    ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-md'
+                    : 'text-blue-700 hover:bg-sky-50 bg-transparent'
+                }`}
+              >
+                <span aria-hidden="true">{icon}</span>
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div id="tab-panel-main" role="tabpanel" className="bg-white p-8 rounded shadow min-h-[500px] border border-gray-200">
+        <div id="tab-panel-main" role="tabpanel" className="bg-white p-8 rounded-xl shadow-sm min-h-[500px] border border-blue-100">
           {activeTab === 'inventory' && (
             <>
               <div className="mb-6 flex items-center justify-between gap-4">
-                <h2 className="text-2xl font-semibold text-gray-800">Inventory Overview</h2>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">📦</span>
+                  <h2 className="text-2xl font-bold text-gray-800">Inventory Overview</h2>
+                </div>
                 <button
                   type="button"
                   onClick={fetchInventory}
-                  className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
                 >
                   Refresh
                 </button>
@@ -943,7 +859,7 @@ export default function Manager() {
                   <table className="min-w-full text-left border-collapse">
                     <caption className="sr-only">Store inventory quantities and restock thresholds</caption>
                     <thead>
-                      <tr className="border-b-2 border-gray-200 bg-gray-50">
+                      <tr className="border-b-2 border-blue-100 bg-sky-50/60">
                         <th scope="col" className="p-3 font-semibold text-gray-700">
                           Item
                         </th>
@@ -983,16 +899,17 @@ export default function Manager() {
           {activeTab === 'history' && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">Order History</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Live order feed from `orders` and `order_items`, including kiosk and cashier checkouts.
-                  </p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">🧾</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Order History</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Live feed of kiosk and cashier checkouts.</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={fetchOrderHistory}
-                  className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
                 >
                   Refresh
                 </button>
@@ -1011,12 +928,12 @@ export default function Manager() {
               {orderHistory.length > 0 && (
                 <div className="space-y-4">
                   {orderHistory.map((order) => (
-                    <section key={order.id} className="rounded-xl border border-gray-200 bg-gray-50 p-4">
+                    <section key={order.id} className="rounded-xl border border-blue-100 bg-sky-50/40 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-bold text-gray-900">
                           Order #{order.id} <span className="text-sm text-gray-500">({order.status})</span>
                         </p>
-                        <p className="font-semibold text-teal-800">{formatCurrency(order.total_amount)}</p>
+                        <p className="font-semibold text-blue-800">{formatCurrency(order.total_amount)}</p>
                       </div>
                       <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-gray-600 sm:grid-cols-2 lg:grid-cols-4">
                         <p>Created: {formatDateTime(order.created_at)}</p>
@@ -1063,16 +980,17 @@ export default function Manager() {
           {activeTab === 'menu' && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">Menu Items & Pricing</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Changes here affect what customers see in kiosk/cashier (name, price, discount, availability, image).
-                  </p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">🍵</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Menu Items & Pricing</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Name, price, discount, availability, and image — live on kiosk/cashier.</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={fetchMenuCatalog}
-                  className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
                 >
                   Refresh
                 </button>
@@ -1145,7 +1063,7 @@ export default function Manager() {
                     type="button"
                     onClick={createMenuItem}
                     disabled={menuSavingId === 'new'}
-                    className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600 disabled:opacity-60"
+                    className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600 disabled:opacity-60"
                   >
                     {menuSavingId === 'new' ? 'Adding…' : 'Add Item'}
                   </button>
@@ -1221,7 +1139,7 @@ export default function Manager() {
                           type="button"
                           onClick={() => saveMenuItem(item.id)}
                           disabled={menuSavingId === item.id}
-                          className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600 disabled:opacity-60"
+                          className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600 disabled:opacity-60"
                         >
                           {menuSavingId === item.id ? 'Saving…' : 'Save'}
                         </button>
@@ -1244,16 +1162,17 @@ export default function Manager() {
           {activeTab === 'employees' && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">Employee Management</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Hire new staff and soft-remove employees while preserving sales history.
-                  </p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">👥</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Employee Management</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Hire and manage staff while preserving sales history.</p>
+                  </div>
                 </div>
                 <button
                   type="button"
                   onClick={fetchEmployees}
-                  className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
                 >
                   Refresh
                 </button>
@@ -1296,7 +1215,7 @@ export default function Manager() {
                     type="button"
                     onClick={addEmployee}
                     disabled={employeeActionId === 'new'}
-                    className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600 disabled:opacity-60"
+                    className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600 disabled:opacity-60"
                   >
                     {employeeActionId === 'new' ? 'Adding…' : 'Add Employee'}
                   </button>
@@ -1342,7 +1261,7 @@ export default function Manager() {
                               type="button"
                               onClick={() => reactivateEmployee(emp.id)}
                               disabled={employeeActionId === emp.id}
-                              className="rounded bg-teal-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-teal-600 disabled:opacity-60"
+                              className="rounded bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-600 disabled:opacity-60"
                             >
                               Reactivate
                             </button>
@@ -1359,11 +1278,12 @@ export default function Manager() {
           {activeTab === 'schedule' && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">Shift Scheduling</h2>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Track weekly coverage and scheduled labor hours.
-                  </p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">📅</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Shift Scheduling</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Track weekly coverage and scheduled labor hours.</p>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -1371,7 +1291,7 @@ export default function Manager() {
                     fetchShifts();
                     fetchLaborReport();
                   }}
-                  className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
                 >
                   Refresh
                 </button>
@@ -1407,7 +1327,7 @@ export default function Manager() {
                   <input type="time" value={newShiftDraft.start_time} onChange={(e) => setNewShiftDraft((d) => ({ ...d, start_time: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="time" value={newShiftDraft.end_time} onChange={(e) => setNewShiftDraft((d) => ({ ...d, end_time: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="text" placeholder="Role on shift" value={newShiftDraft.role} onChange={(e) => setNewShiftDraft((d) => ({ ...d, role: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <button type="button" onClick={addShift} className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">
+                  <button type="button" onClick={addShift} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">
                     Add Shift
                   </button>
                 </div>
@@ -1495,11 +1415,14 @@ export default function Manager() {
           {activeTab === 'operations' && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">Operations</h2>
-                  <p className="text-sm text-gray-500 mt-1">Low-stock alerts, inventory adjustments, suppliers, and purchase orders.</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">🏪</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Operations</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Low-stock alerts, inventory adjustments, suppliers, and purchase orders.</p>
+                  </div>
                 </div>
-                <button type="button" onClick={fetchOperations} className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">Refresh</button>
+                <button type="button" onClick={fetchOperations} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition">Refresh</button>
               </div>
               {operationsError && <p className="text-red-600 mb-4">{operationsError}</p>}
               <section className="mb-6 rounded-xl border border-gray-200 p-4">
@@ -1529,7 +1452,7 @@ export default function Manager() {
                   <select value={inventoryAdjustmentDraft.reason} onChange={(e) => setInventoryAdjustmentDraft((d) => ({ ...d, reason: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm">
                     <option value="correction">correction</option><option value="waste">waste</option><option value="spill">spill</option><option value="spoilage">spoilage</option><option value="supplier_receive">supplier_receive</option>
                   </select>
-                  <button type="button" onClick={createInventoryAdjustment} className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">Apply</button>
+                  <button type="button" onClick={createInventoryAdjustment} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Apply</button>
                 </div>
                 <input type="text" placeholder="Notes" value={inventoryAdjustmentDraft.notes} onChange={(e) => setInventoryAdjustmentDraft((d) => ({ ...d, notes: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm mt-3 w-full" />
               </section>
@@ -1539,7 +1462,7 @@ export default function Manager() {
                   <input type="text" placeholder="Supplier name" value={supplierDraft.name} onChange={(e) => setSupplierDraft((d) => ({ ...d, name: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="text" placeholder="Contact name" value={supplierDraft.contact_name} onChange={(e) => setSupplierDraft((d) => ({ ...d, contact_name: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="email" placeholder="Contact email" value={supplierDraft.contact_email} onChange={(e) => setSupplierDraft((d) => ({ ...d, contact_email: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <button type="button" onClick={createSupplier} className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">Add Supplier</button>
+                  <button type="button" onClick={createSupplier} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Add Supplier</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                   <select value={purchaseOrderDraft.supplier_id} onChange={(e) => setPurchaseOrderDraft((d) => ({ ...d, supplier_id: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm">
@@ -1550,13 +1473,13 @@ export default function Manager() {
                   </select>
                   <input type="number" step="0.01" placeholder="Qty" value={purchaseOrderDraft.quantity} onChange={(e) => setPurchaseOrderDraft((d) => ({ ...d, quantity: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="date" value={purchaseOrderDraft.expected_date} onChange={(e) => setPurchaseOrderDraft((d) => ({ ...d, expected_date: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <button type="button" onClick={createPurchaseOrder} className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">Create PO</button>
+                  <button type="button" onClick={createPurchaseOrder} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Create PO</button>
                 </div>
                 <div className="mt-4 space-y-2">
                   {purchaseOrders.slice(0, 8).map((po) => (
                     <div key={po.id} className="flex items-center justify-between rounded border border-gray-200 px-3 py-2 text-sm">
                       <span>PO #{po.id} — {po.supplier_name || 'Unknown'} — {po.status}</span>
-                      {po.status !== 'received' && <button type="button" onClick={() => receivePurchaseOrder(po.id)} className="rounded bg-teal-700 px-3 py-1 text-xs font-bold text-white hover:bg-teal-600">Receive</button>}
+                      {po.status !== 'received' && <button type="button" onClick={() => receivePurchaseOrder(po.id)} className="rounded bg-blue-700 px-3 py-1 text-xs font-bold text-white hover:bg-blue-600">Receive</button>}
                     </div>
                   ))}
                 </div>
@@ -1567,11 +1490,14 @@ export default function Manager() {
           {activeTab === 'finance' && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">Finance Controls</h2>
-                  <p className="text-sm text-gray-500 mt-1">Voids, refunds, comps, discounts, and service-charge adjustments.</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">💰</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Finance Controls</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Voids, refunds, comps, discounts, and service-charge adjustments.</p>
+                  </div>
                 </div>
-                <button type="button" onClick={fetchFinance} className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">Refresh</button>
+                <button type="button" onClick={fetchFinance} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition">Refresh</button>
               </div>
               {financeError && <p className="text-red-600 mb-4">{financeError}</p>}
               <section className="mb-6 rounded-xl border border-gray-200 p-4">
@@ -1585,7 +1511,7 @@ export default function Manager() {
                   <input type="number" step="0.01" placeholder="Amount" value={financeDraft.amount} onChange={(e) => setFinanceDraft((d) => ({ ...d, amount: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="text" placeholder="Reason" value={financeDraft.reason} onChange={(e) => setFinanceDraft((d) => ({ ...d, reason: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm md:col-span-2" />
                 </div>
-                <button type="button" onClick={createFinanceAdjustment} className="mt-3 rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">Save Adjustment</button>
+                <button type="button" onClick={createFinanceAdjustment} className="mt-3 rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Save Adjustment</button>
               </section>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm border-collapse">
@@ -1599,11 +1525,14 @@ export default function Manager() {
           {activeTab === 'insights' && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">Insights</h2>
-                  <p className="text-sm text-gray-500 mt-1">Peak hours and lightweight staffing suggestions from transaction history.</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">💡</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Insights</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Peak hours and staffing suggestions from transaction history.</p>
+                  </div>
                 </div>
-                <button type="button" onClick={fetchInsights} className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">Refresh</button>
+                <button type="button" onClick={fetchInsights} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition">Refresh</button>
               </div>
               {insightsError && <p className="text-red-600 mb-4">{insightsError}</p>}
               <section className="rounded-xl border border-gray-200 p-4">
@@ -1653,17 +1582,20 @@ export default function Manager() {
           {activeTab === 'audit' && (
             <>
               <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-2xl font-semibold text-gray-800">Audit & Export</h2>
-                  <p className="text-sm text-gray-500 mt-1">Track who changed what and export CSV snapshots.</p>
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl" aria-hidden="true">🔍</span>
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-800">Audit & Export</h2>
+                    <p className="text-sm text-gray-500 mt-0.5">Track who changed what and export CSV snapshots.</p>
+                  </div>
                 </div>
-                <button type="button" onClick={fetchAuditLogs} className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50">Refresh</button>
+                <button type="button" onClick={fetchAuditLogs} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition">Refresh</button>
               </div>
               {auditError && <p className="text-red-600 mb-4">{auditError}</p>}
               <div className="mb-4 flex flex-wrap gap-3">
-                <button type="button" onClick={() => exportCsv('sales')} className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">Export Sales CSV</button>
-                <button type="button" onClick={() => exportCsv('inventory')} className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">Export Inventory CSV</button>
-                <button type="button" onClick={() => exportCsv('labor')} className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">Export Labor CSV</button>
+                <button type="button" onClick={() => exportCsv('sales')} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Export Sales CSV</button>
+                <button type="button" onClick={() => exportCsv('inventory')} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Export Inventory CSV</button>
+                <button type="button" onClick={() => exportCsv('labor')} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Export Labor CSV</button>
               </div>
               <section className="mb-6 rounded-xl border border-gray-200 p-4">
                 <h3 className="font-semibold text-gray-800 mb-3">Scheduled Exports</h3>
@@ -1692,7 +1624,7 @@ export default function Manager() {
                     className="rounded border border-gray-200 px-3 py-2 text-sm"
                     placeholder="Cadence days"
                   />
-                  <button type="button" onClick={createExportSchedule} className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600">Add Schedule</button>
+                  <button type="button" onClick={createExportSchedule} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Add Schedule</button>
                 </div>
                 <div className="space-y-2">
                   {exportSchedules.slice(0, 30).map((s) => (
@@ -1700,7 +1632,7 @@ export default function Manager() {
                       <span>
                         #{s.id} {s.name} ({s.export_kind}) every {s.cadence_days} day(s) | next: {formatDateTime(s.next_run_at)}
                       </span>
-                      <button type="button" onClick={() => runExportSchedule(s.id)} className="rounded bg-teal-700 px-3 py-1 text-xs font-bold text-white hover:bg-teal-600">
+                      <button type="button" onClick={() => runExportSchedule(s.id)} className="rounded bg-blue-700 px-3 py-1 text-xs font-bold text-white hover:bg-blue-600">
                         Run now
                       </button>
                     </div>
@@ -1718,65 +1650,42 @@ export default function Manager() {
 
           {activeTab === 'reports' && (
             <>
-              <h2 className="text-2xl font-semibold mb-2 text-gray-800">Reports</h2>
-              <p className="text-gray-500 mb-6">
-                Product usage, X-report hourly sales, Z-report end-of-day summary, and sales-by-item.
-              </p>
-
-              <div className="flex flex-wrap gap-2 mb-6 border-b pb-4" role="tablist" aria-label="Report types">
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={reportTab === 'productUsage'}
-                  aria-controls="report-panel"
-                  onClick={() => handleReportTabChange('productUsage')}
-                  className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
-                    reportTab === 'productUsage' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
-                  }`}
-                >
-                  Product Usage
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={reportTab === 'xReport'}
-                  aria-controls="report-panel"
-                  onClick={() => handleReportTabChange('xReport')}
-                  className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
-                    reportTab === 'xReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
-                  }`}
-                >
-                  X-Report
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={reportTab === 'zReport'}
-                  aria-controls="report-panel"
-                  onClick={() => handleReportTabChange('zReport')}
-                  className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
-                    reportTab === 'zReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
-                  }`}
-                >
-                  Z-Report
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={reportTab === 'salesReport'}
-                  aria-controls="report-panel"
-                  onClick={() => handleReportTabChange('salesReport')}
-                  className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
-                    reportTab === 'salesReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
-                  }`}
-                >
-                  Sales Report
-                </button>
+              <div className="mb-5 flex items-center gap-3">
+                <span className="text-2xl" aria-hidden="true">📊</span>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-800">Reports</h2>
+                  <p className="text-sm text-gray-500">Product usage · X-report · Z-report · Sales by item</p>
+                </div>
               </div>
 
-              <div id="report-panel" role="tabpanel" className="bg-white border border-gray-200 rounded-xl p-6">
+              <div className="flex flex-wrap gap-2 mb-6 bg-slate-50 border border-slate-200 rounded-xl p-1.5" role="tablist" aria-label="Report types">
+                {[
+                  { key: 'productUsage', label: '📉 Product Usage' },
+                  { key: 'xReport',      label: '⏰ X-Report' },
+                  { key: 'zReport',      label: '🔒 Z-Report' },
+                  { key: 'salesReport',  label: '💵 Sales Report' },
+                ].map(({ key, label }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={reportTab === key}
+                    aria-controls="report-panel"
+                    onClick={() => handleReportTabChange(key)}
+                    className={`min-h-[38px] px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${
+                      reportTab === key
+                        ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow'
+                        : 'text-blue-700 hover:bg-sky-50'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              <div id="report-panel" role="tabpanel" className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
                 {feedback && (
-                  <p className={`mb-4 font-medium ${feedback.includes('No') ? 'text-amber-700' : 'text-teal-800'}`}>
+                  <p className={`mb-4 font-medium ${feedback.includes('No') ? 'text-amber-700' : 'text-blue-800'}`}>
                     {feedback}
                   </p>
                 )}
@@ -1812,7 +1721,7 @@ export default function Manager() {
                       <button
                         type="button"
                         onClick={openProductUsage}
-                        className="mt-1 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-teal-600 transition"
+                        className="mt-1 rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-blue-600 transition"
                       >
                         Open Product Usage Graph
                       </button>
@@ -1829,7 +1738,7 @@ export default function Manager() {
                     <button
                       type="button"
                       onClick={openXReport}
-                      className="rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-teal-600 transition"
+                      className="rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-blue-600 transition"
                     >
                       Open X-Report Chart
                     </button>
@@ -1861,7 +1770,7 @@ export default function Manager() {
                       <button
                         type="button"
                         onClick={runZReport}
-                        className="mt-1 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-teal-600 transition"
+                        className="mt-1 rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-blue-600 transition"
                       >
                         Run Z-Report
                       </button>
@@ -1900,7 +1809,7 @@ export default function Manager() {
                       <button
                         type="button"
                         onClick={openSalesByItem}
-                        className="mt-1 rounded-xl bg-teal-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-teal-600 transition"
+                        className="mt-1 rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-blue-600 transition"
                       >
                         Open Sales Report
                       </button>
