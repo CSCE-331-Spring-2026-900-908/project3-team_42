@@ -295,7 +295,7 @@ export default function Cashier() {
                   )}
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">âˆ’</button>
+                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">-</button>
                       <span className="font-bold tabular-nums text-slate-800">{item.quantity}</span>
                       <button onClick={() => incrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">+</button>
                     </div>
@@ -308,13 +308,6 @@ export default function Cashier() {
         </div>
 
         <div className="p-6 shrink-0 bg-white">
-          <div className="bg-[#f8fafc] rounded-xl border border-slate-100 p-4 mb-6">
-            <p className="text-sm font-bold text-slate-900 mb-2">Rewards Account</p>
-            <button className="w-full py-2 bg-slate-200 hover:bg-[#e2e8f0] rounded border border-slate-300 text-sm font-semibold text-slate-700 transition">
-              + Link Rewards Account
-            </button>
-          </div>
-
           <div className="space-y-3 border-t border-slate-100 pt-5">
             <div className="flex justify-between text-[15px] font-medium text-slate-600">
               <span>Subtotal</span>
@@ -388,18 +381,16 @@ export default function Cashier() {
 
               <div>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
-                <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {TOPPING_OPTIONS.map(topping => (
-                    <label key={topping.id} className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${toppings.includes(topping.id) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                      <span className="font-medium text-slate-800">{topping.name}</span>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={toppings.includes(topping.id)}
-                          onChange={() => toggleTopping(topping.id)}
-                          className="h-5 w-5 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
-                        />
-                      </div>
+                    <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition ${toppings.includes(topping.id) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                      <span className="text-sm font-medium leading-tight text-slate-800">{topping.name}</span>
+                      <input
+                        type="checkbox"
+                        checked={toppings.includes(topping.id)}
+                        onChange={() => toggleTopping(topping.id)}
+                        className="h-5 w-5 shrink-0 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
+                      />
                     </label>
                   ))}
                 </div>

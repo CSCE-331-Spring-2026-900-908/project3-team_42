@@ -257,7 +257,7 @@ export default function CustomerKiosk() {
         ];
         const translated = await Promise.all(keys.map((k) => translateText(copy[k], 'es')));
         const nextCopy = keys.reduce((acc, k, i) => ({ ...acc, [k]: translated[i] }), {});
-        setCopy((c) => ({ ...c, ...nextCopy, translateBtn: 'Traducir al InglÃ©s' }));
+        setCopy((c) => ({ ...c, ...nextCopy, translateBtn: 'Traducir al Ingles' }));
 
         const translatedMenu = await Promise.all(
           menuItems.map(async (item) => ({
@@ -419,16 +419,16 @@ export default function CustomerKiosk() {
   const weatherLabel = useMemo(() => {
     if (!weather) return null;
     const temp = weather.temperature;
-    if (temp >= 80) return { emoji: 'â˜€ï¸', text: 'Hot outside â€” cool down with these!', bg: 'bg-amber-50 border-amber-200 text-amber-800' };
-    if (temp <= 55) return { emoji: 'ðŸŒ§ï¸', text: 'Chilly today â€” warm up with these!', bg: 'bg-sky-50 border-sky-200 text-sky-800' };
-    return { emoji: 'ðŸŒ¤ï¸', text: 'Nice day â€” try something special!', bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
+    if (temp >= 80) return { emoji: '\u2600\uFE0F', text: 'Hot outside - cool down with these!', bg: 'bg-amber-50 border-amber-200 text-amber-800' };
+    if (temp <= 55) return { emoji: '\u{1F327}\uFE0F', text: 'Chilly today - warm up with these!', bg: 'bg-sky-50 border-sky-200 text-sky-800' };
+    return { emoji: '\u{1F324}\uFE0F', text: 'Nice day - try something special!', bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
   }, [weather]);
 
   if (sessionLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-violet-50 to-white font-[family-name:var(--font-ui)]">
         <p className="text-lg font-semibold text-violet-800" role="status">
-          Loadingâ€¦
+          Loading...
         </p>
       </div>
     );
@@ -513,7 +513,7 @@ export default function CustomerKiosk() {
               {sessionUser.isGuest ? copy.endSession : copy.signOut}
             </button>
             <button type="button" onClick={handleTranslateToggle} disabled={isTranslating} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-50">
-              {isTranslating ? 'â€¦' : (language === 'es' ? 'ðŸ‡ºðŸ‡¸ English' : 'ðŸ‡²ðŸ‡½ EspaÃ±ol')}
+              {isTranslating ? '...' : (language === 'es' ? 'English' : 'Espanol')}
             </button>
           </div>
         </header>
@@ -524,7 +524,7 @@ export default function CustomerKiosk() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xl">{weatherLabel.emoji}</span>
               <span className="font-bold text-sm">{weatherLabel.text}</span>
-              {weather && <span className="ml-auto text-xs font-medium opacity-70">{weather.temperature}Â°{weather.unit}</span>}
+              {weather && <span className="ml-auto text-xs font-medium opacity-70">{weather.temperature} deg {weather.unit}</span>}
             </div>
             <div className="flex gap-3 overflow-x-auto pb-1">
               {weatherRecommendations.map(item => (
@@ -533,7 +533,7 @@ export default function CustomerKiosk() {
                   onClick={() => handleDrinkClick(item)}
                   className="flex shrink-0 items-center gap-3 rounded-xl border border-white/60 bg-white/80 px-4 py-3 text-left transition hover:bg-white hover:shadow-sm active:scale-95"
                 >
-                  <span className="text-2xl">ðŸ§‹</span>
+                  <span className="text-2xl" aria-hidden="true">{'\u{1F9CB}'}</span>
                   <div>
                     <p className="text-sm font-bold leading-tight text-stone-800">{item.name}</p>
                     <p className="text-xs font-medium text-stone-500">${getBasePrice(item).toFixed(2)}</p>
@@ -571,7 +571,7 @@ export default function CustomerKiosk() {
                   {item.image_url ? (
                     <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-105" />
                   ) : (
-                    <span className="text-5xl opacity-30">ðŸ§‹</span>
+                    <span className="text-5xl opacity-30" aria-hidden="true">{'\u{1F9CB}'}</span>
                   )}
                 </div>
                 <div className="p-4 w-full flex flex-col items-center flex-1">
@@ -600,7 +600,7 @@ export default function CustomerKiosk() {
         <div className="flex-1 overflow-y-auto px-5 py-4 relative">
           {cart.length === 0 ? (
             <div className="flex h-full items-center justify-center flex-col -mt-10 opacity-60">
-              <span className="text-5xl mb-4">ðŸ§‹</span>
+              <span className="text-5xl mb-4" aria-hidden="true">{'\u{1F9CB}'}</span>
               <p className="font-medium text-stone-400 text-center text-sm">{copy.emptyCart}</p>
             </div>
           ) : (
@@ -619,7 +619,7 @@ export default function CustomerKiosk() {
                   )}
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">âˆ’</button>
+                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">-</button>
                       <span className="font-bold tabular-nums text-stone-800">{item.quantity}</span>
                       <button onClick={() => addToCart(item)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">+</button>
                     </div>
@@ -664,7 +664,7 @@ export default function CustomerKiosk() {
           className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border border-slate-200 text-2xl shadow-lg transition hover:scale-105 active:scale-95"
           aria-label="Open menu assistant"
         >
-          âœ¨
+          {'\u2728'}
         </button>
       </div>
 
@@ -677,7 +677,7 @@ export default function CustomerKiosk() {
         <div className="flex max-h-[500px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
           <div className="flex items-center justify-between bg-slate-900 px-5 py-4 text-white">
             <span className="font-bold">Boba assistant</span>
-            <button onClick={() => setChatOpen(false)} className="text-white/80 hover:text-white">âœ•</button>
+            <button onClick={() => setChatOpen(false)} className="text-white/80 hover:text-white">{'\u2715'}</button>
           </div>
           <div className="flex-1 min-h-[250px] max-h-72 overflow-y-auto space-y-3 bg-slate-50 p-4">
             {chatLog.length === 0 && <p className="text-center text-sm text-slate-500">{copy.assistantHint}</p>}
@@ -686,11 +686,11 @@ export default function CustomerKiosk() {
                 <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
               </div>
             ))}
-            {isChatting && <p className="text-sm italic text-slate-400">â€¦</p>}
+            {isChatting && <p className="text-sm italic text-slate-400">...</p>}
             <div ref={chatEndRef} />
           </div>
           <form onSubmit={handleChatSubmit} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
-            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Habla o escribe tu preguntaâ€¦' : 'Speak or type...'} />
+            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Habla o escribe tu pregunta...' : 'Speak or type...'} />
             <button type="submit" disabled={isChatting} className="min-h-[44px] rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {language === 'es' ? 'Enviar' : 'Send'}
             </button>
@@ -748,19 +748,17 @@ export default function CustomerKiosk() {
 
               <div>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
-                <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {TOPPING_OPTIONS.map((topping) => {
                     return (
-                      <label key={topping.id} className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${selectedToppings.includes(topping.name) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                        <span className="font-medium text-slate-800">{topping.name}</span>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedToppings.includes(topping.name)}
-                            onChange={() => toggleTopping(topping.name)}
-                            className="h-5 w-5 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
-                          />
-                        </div>
+                      <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition ${selectedToppings.includes(topping.name) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                        <span className="text-sm font-medium leading-tight text-slate-800">{topping.name}</span>
+                        <input
+                          type="checkbox"
+                          checked={selectedToppings.includes(topping.name)}
+                          onChange={() => toggleTopping(topping.name)}
+                          className="h-5 w-5 shrink-0 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
+                        />
                       </label>
                     );
                   })}
@@ -792,7 +790,7 @@ export default function CustomerKiosk() {
               disabled={checkoutLoading}
               className="group relative flex h-48 w-48 flex-col items-center justify-center gap-4 rounded-[2rem] bg-slate-50 border-2 border-dashed border-slate-300 transition-all hover:border-[#93c5fd] hover:bg-[#eff6ff] active:scale-95 disabled:pointer-events-none disabled:opacity-70"
             >
-              <div className="text-6xl transition-transform group-hover:scale-110">ðŸ’³</div>
+              <div className="text-6xl transition-transform group-hover:scale-110">{'\u{1F4B3}'}</div>
               <span className="font-bold text-slate-600 group-hover:text-blue-600">
                 {checkoutLoading ? 'Processing...' : 'Tap Simulator'}
               </span>
@@ -815,7 +813,7 @@ export default function CustomerKiosk() {
           <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl text-center overflow-hidden relative">
             <div className="absolute inset-x-0 top-0 h-2 bg-green-400"></div>
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-500 text-3xl mb-6 shadow-inner">
-              âœ“
+              {'\u2713'}
             </div>
             <h2 className="text-3xl font-black text-slate-900 mb-2">{copy.orderSuccessTitle}</h2>
             <p className="text-slate-500 font-medium mb-6">{copy.orderSuccessLead}</p>
