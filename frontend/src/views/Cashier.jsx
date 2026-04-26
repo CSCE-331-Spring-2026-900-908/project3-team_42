@@ -49,9 +49,16 @@ export default function Cashier() {
   const [toppings, setToppings] = useState([]);
 
   const TOPPING_OPTIONS = [
-    { id: 'boba', name: 'Boba (+0.50)', price: 0.50 },
-    { id: 'lychee_jelly', name: 'Lychee Jelly (+0.50)', price: 0.50 },
-    { id: 'pudding', name: 'Pudding (+0.50)', price: 0.50 }
+    { id: 'pearls_boba', name: 'Pearls (Boba)', price: 0.50 },
+    { id: 'lychee_jelly', name: 'Lychee Jelly', price: 0.50 },
+    { id: 'crystal_boba', name: 'Crystal Boba', price: 0.50 },
+    { id: 'ice_cream', name: 'Ice Cream', price: 0.50 },
+    { id: 'coffee_jelly', name: 'Coffee Jelly', price: 0.50 },
+    { id: 'honey_jelly', name: 'Honey Jelly', price: 0.50 },
+    { id: 'mango_popping_boba', name: 'Mango Popping Boba', price: 0.50 },
+    { id: 'creama', name: 'Creama', price: 0.50 },
+    { id: 'pudding', name: 'Pudding', price: 0.50 },
+    { id: 'strawberry_popping_boba', name: 'Strawberry Popping Boba', price: 0.50 },
   ];
 
   const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
@@ -74,7 +81,9 @@ export default function Cashier() {
     const toppingsPrice = toppings.length * 0.50;
     const customPrice = basePrice + toppingsPrice;
     
-    const toppingNames = toppings.map(tid => TOPPING_OPTIONS.find(o => o.id === tid)?.name.split(' ')[0]);
+    const toppingNames = toppings
+      .map((tid) => TOPPING_OPTIONS.find((o) => o.id === tid)?.name)
+      .filter(Boolean);
 
     const customization = {
       sweetness: `${sweetness}%`,
@@ -286,7 +295,7 @@ export default function Cashier() {
                   )}
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">−</button>
+                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">âˆ’</button>
                       <span className="font-bold tabular-nums text-slate-800">{item.quantity}</span>
                       <button onClick={() => incrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">+</button>
                     </div>
@@ -382,7 +391,7 @@ export default function Cashier() {
                 <div className="flex flex-col gap-2">
                   {TOPPING_OPTIONS.map(topping => (
                     <label key={topping.id} className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${toppings.includes(topping.id) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                      <span className="font-medium text-slate-800">{topping.name.replace(' (+0.50)', '')}</span>
+                      <span className="font-medium text-slate-800">{topping.name}</span>
                       <div className="flex items-center gap-3">
                         <input
                           type="checkbox"

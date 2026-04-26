@@ -4,7 +4,6 @@ import { jwtDecode } from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Modal from '../components/manager/Modal';
-import VoiceDictationButton from '../components/VoiceDictationButton';
 import {
   DonutChart,
   HorizontalBarChart,
@@ -346,12 +345,6 @@ export default function Manager() {
     fetchAuditLogs();
   }, [user, activeTab]);
 
-  useEffect(() => {
-    // Keep UX tight: when switching report tabs, clear messages and close modals.
-    setFeedback('');
-    setModal((m) => ({ ...m, open: false, loading: false, error: null, data: null }));
-  }, [reportTab]);
-
   const handleLogin = (credentialResponse) => {
     const decoded = jwtDecode(credentialResponse.credential);
     // Verifying token claims locally for MVP
@@ -382,6 +375,12 @@ export default function Manager() {
   const setModalError = (err) => {
     const msg = err?.response?.data?.error || err?.message || 'Request failed';
     setModal((m) => ({ ...m, loading: false, error: msg }));
+  };
+
+  const handleReportTabChange = (nextTab) => {
+    setFeedback('');
+    setModal((m) => ({ ...m, open: false, loading: false, error: null, data: null }));
+    setReportTab(nextTab);
   };
 
   const openProductUsage = () => {
@@ -732,7 +731,6 @@ export default function Manager() {
 
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-6">
-        <a href="#main-content" className="skip-link">Skip to main content</a>
         <h1 id="main-content" className="text-4xl font-extrabold text-blue-900">Manager Access</h1>
         <p className="text-gray-600 text-lg">Please authenticate with an authorized Google account.</p>
         <div className="bg-white p-8 rounded shadow-lg border-2 border-blue-100 flex justify-center">
@@ -749,7 +747,6 @@ export default function Manager() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center">
-      <a href="#main-content" className="skip-link">Skip to main content</a>
       <header className="bg-teal-900 text-white w-full p-4 shadow-md flex justify-between items-center px-8">
         <div className="flex items-center gap-4">
           <button 
@@ -1732,7 +1729,7 @@ export default function Manager() {
                   role="tab"
                   aria-selected={reportTab === 'productUsage'}
                   aria-controls="report-panel"
-                  onClick={() => setReportTab('productUsage')}
+                  onClick={() => handleReportTabChange('productUsage')}
                   className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'productUsage' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
@@ -1744,7 +1741,7 @@ export default function Manager() {
                   role="tab"
                   aria-selected={reportTab === 'xReport'}
                   aria-controls="report-panel"
-                  onClick={() => setReportTab('xReport')}
+                  onClick={() => handleReportTabChange('xReport')}
                   className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'xReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
@@ -1756,7 +1753,7 @@ export default function Manager() {
                   role="tab"
                   aria-selected={reportTab === 'zReport'}
                   aria-controls="report-panel"
-                  onClick={() => setReportTab('zReport')}
+                  onClick={() => handleReportTabChange('zReport')}
                   className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'zReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
@@ -1768,7 +1765,7 @@ export default function Manager() {
                   role="tab"
                   aria-selected={reportTab === 'salesReport'}
                   aria-controls="report-panel"
-                  onClick={() => setReportTab('salesReport')}
+                  onClick={() => handleReportTabChange('salesReport')}
                   className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'salesReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
@@ -1852,20 +1849,14 @@ export default function Manager() {
                     <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
                       <div className="w-full sm:w-[280px]">
                         <label htmlFor="z-signature" className="block text-sm font-semibold text-gray-700 mb-1">Signature</label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            id="z-signature"
-                            type="text"
-                            value={signature}
-                            onChange={(e) => setSignature(e.target.value)}
-                            placeholder="Your name or initials"
-                            className="rounded-lg border border-stone-200 px-3 py-2 text-sm flex-1"
-                          />
-                          <VoiceDictationButton
-                            onTranscript={(text) => setSignature((prev) => prev + text)}
-                            size="sm"
-                          />
-                        </div>
+                        <input
+                          id="z-signature"
+                          type="text"
+                          value={signature}
+                          onChange={(e) => setSignature(e.target.value)}
+                          placeholder="Your name or initials"
+                          className="rounded-lg border border-stone-200 px-3 py-2 text-sm w-full"
+                        />
                       </div>
                       <button
                         type="button"

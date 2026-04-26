@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS customer_accounts (
     email VARCHAR(255) NOT NULL,
     name VARCHAR(255),
     picture_url VARCHAR(512),
+    points_balance INT NOT NULL DEFAULT 0,
     oauth_provider VARCHAR(50) NOT NULL DEFAULT 'google',
     oauth_subject VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -15,3 +16,4 @@ CREATE TABLE IF NOT EXISTS customer_accounts (
 );
 
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS customer_account_id INT REFERENCES customer_accounts(id) ON DELETE SET NULL;
+ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS points_balance INT NOT NULL DEFAULT 0;

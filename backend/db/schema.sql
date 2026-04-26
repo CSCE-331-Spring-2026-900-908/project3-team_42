@@ -53,6 +53,7 @@ CREATE TABLE customer_accounts (
     email VARCHAR(255) NOT NULL,
     name VARCHAR(255),
     picture_url VARCHAR(512),
+    points_balance INT NOT NULL DEFAULT 0,
     oauth_provider VARCHAR(50) NOT NULL DEFAULT 'google',
     oauth_subject VARCHAR(255) NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -175,7 +176,7 @@ CREATE TABLE order_items (
 -- Loyalty / analytics: append-only ledger plus cached per-user balance (updated in the same transaction as inserts).
 CREATE TABLE points_ledger (
     id SERIAL PRIMARY KEY,
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    customer_account_id INT NOT NULL REFERENCES customer_accounts(id) ON DELETE CASCADE,
     activity_type VARCHAR(32) NOT NULL, -- 'order', 'login', 'bonus', 'order_reversal'
     points_delta INT NOT NULL,
     order_id INT REFERENCES orders(id) ON DELETE SET NULL,
@@ -183,13 +184,13 @@ CREATE TABLE points_ledger (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_points_ledger_user_time ON points_ledger (user_id, created_at DESC);
+CREATE INDEX idx_points_ledger_customer_time ON points_ledger (customer_account_id, created_at DESC);
 
 -- Prevents farming login points: at most one successful award per user per UTC calendar day.
 CREATE TABLE login_points_daily (
-    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    customer_account_id INT NOT NULL REFERENCES customer_accounts(id) ON DELETE CASCADE,
     award_date DATE NOT NULL,
-    PRIMARY KEY (user_id, award_date)
+    PRIMARY KEY (customer_account_id, award_date)
 );
 
 CREATE TABLE inventory_adjustments (
