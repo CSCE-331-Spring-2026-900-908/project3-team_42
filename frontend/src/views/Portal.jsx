@@ -58,7 +58,7 @@ export default function Portal() {
       <div id="main-content" className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-5 py-14 sm:px-8" role="main">
         <header className="mb-12 text-center sm:mb-16">
           <img
-            src="/logo.jpg"
+            src="/logo.png"
             alt="Reveille Boba logo"
             className="mx-auto mb-6 h-40 w-40 object-contain drop-shadow-[0_10px_30px_rgba(91,33,182,0.18)] sm:h-48 sm:w-48"
           />
