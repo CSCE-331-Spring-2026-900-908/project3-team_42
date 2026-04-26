@@ -8,11 +8,12 @@
     --color-plum: #5b21b6;
     --font-display: 'Fraunces', Georgia, serif;
     --font-ui: 'DM Sans', system-ui, sans-serif;
+    --font-scale: 1;
   }
 
   html {
     scroll-behavior: smooth;
-    font-size: 16px;
+    font-size: calc(16px * var(--font-scale));
   }
 
   body {
@@ -22,6 +23,86 @@
     -moz-osx-font-smoothing: grayscale;
     background-color: var(--color-cream);
     color: var(--color-ink);
+  }
+
+  .a11y-root {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483646;
+    pointer-events: none;
+  }
+
+  html.reduce-motion *,
+  html.reduce-motion *::before,
+  html.reduce-motion *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  html.high-contrast {
+    --color-cream: #ffffff;
+    --color-ink: #000000;
+  }
+
+  html.high-contrast body {
+    background-color: #fff !important;
+    color: #000 !important;
+  }
+
+  html.high-contrast #root * {
+    border-color: #000 !important;
+  }
+
+  html.high-contrast #root img {
+    border: 2px solid #000 !important;
+  }
+
+  html.high-contrast #root a {
+    text-decoration: underline !important;
+    color: #000 !important;
+  }
+
+  html.high-contrast #root button {
+    border: 2px solid #000 !important;
+  }
+
+  html.high-contrast #root [class*="bg-gradient"],
+  html.high-contrast #root [class*="from-"] {
+    background-image: none !important;
+    background-color: #000 !important;
+    color: #fff !important;
+  }
+
+  html.high-contrast #root header,
+  html.high-contrast #root footer,
+  html.high-contrast #root aside,
+  html.high-contrast #root nav {
+    background-color: #fff !important;
+    color: #000 !important;
+    border-color: #000 !important;
+  }
+
+  html.high-contrast #root [class*="bg-gradient"] button {
+    color: #fff !important;
+  }
+
+  html.high-contrast #root table th,
+  html.high-contrast #root table td {
+    border: 1px solid #000 !important;
+  }
+
+  html.high-contrast #root [class*="shadow"] {
+    box-shadow: none !important;
+  }
+
+  html.high-contrast #root input,
+  html.high-contrast #root select,
+  html.high-contrast #root textarea {
+    border: 2px solid #000 !important;
+    background: #fff !important;
+    color: #000 !important;
   }
 
 }
