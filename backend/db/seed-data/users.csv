@@ -1,5 +1,0 @@
-id,name,role,email,is_active,hired_at,terminated_at
-1,Manager Reveille,manager,reveille.bubbletea@gmail.com,true,2026-03-12 18:51:02,
-2,Cashier Alice,cashier,alice@boba.com,true,2026-03-12 18:51:02,
-3,Cashier Bob,cashier,bob@boba.com,true,2026-03-12 18:51:02,
-4,Self-Service Kiosk,cashier,kiosk@reveilleboba.local,true,2026-03-12 18:51:02,
