@@ -371,6 +371,7 @@ export default function CustomerKiosk() {
         pointsToNextFreeBoba: res.data.pointsToNextFreeBoba ?? 5,
         justUnlockedFreeBoba:
           (res.data.freeBobaCount ?? 0) > previousFreeBobaCount,
+        isGuest: !!sessionUser?.isGuest,
       };
 
       sessionStorage.setItem(
