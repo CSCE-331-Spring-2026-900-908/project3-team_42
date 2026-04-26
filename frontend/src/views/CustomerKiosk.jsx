@@ -1,9 +1,13 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
-import api, { CUSTOMER_SESSION_STORAGE_KEY } from '../api';
+import api, {
+  CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
+  CUSTOMER_SESSION_STORAGE_KEY,
+} from '../api';
+import { calculateOrderRewardPoints } from '../lib/rewards';
 
-const KIOSK_CASHIER_ID = 3;
+const KIOSK_CASHIER_ID = 4;
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -36,11 +40,6 @@ function defaultKioskCopy() {
     signOut: 'Sign out',
     endSession: 'End session',
     signedInAs: 'Signed in',
-    orderSuccessTitle: "You're all set!",
-    orderSuccessLead: 'Your order was placed successfully.',
-    orderSuccessThankYou: 'Thank you',
-    orderSuccessOrderLabel: 'Order number',
-    orderSuccessCta: 'Start new order',
   };
 }
 
@@ -48,6 +47,7 @@ export default function CustomerKiosk() {
   const navigate = useNavigate();
   const [sessionUser, setSessionUser] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [rewardsSummary, setRewardsSummary] = useState(null);
 
   const [menuItems, setMenuItems] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -56,10 +56,8 @@ export default function CustomerKiosk() {
   const [ice, setIce] = useState('Regular');
   const [selectedToppings, setSelectedToppings] = useState([]);
   const [cart, setCart] = useState([]);
-  const [orderSuccess, setOrderSuccess] = useState(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const orderSuccessCtaRef = useRef(null);
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
@@ -70,97 +68,58 @@ export default function CustomerKiosk() {
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const chatEndRef = useRef(null);
-  const chatPanelRef = useRef(null);
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
   const googleSignInAvailable = Boolean(googleClientId);
 
   useEffect(() => {
-    const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
-    if (!token) {
-      setSessionLoading(false);
-      return;
-    }
-    api
-      .get('/auth/me')
-      .then((res) => setSessionUser(res.data.user))
-      .catch(() => {
+    let ignore = false;
+
+    async function restoreSession() {
+      const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
+      if (!token) {
+        setSessionLoading(false);
+        return;
+      }
+
+      try {
+        const res = await api.get('/auth/me');
+        if (!ignore) {
+          setSessionUser(res.data.user);
+        }
+      } catch {
         localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
-        setSessionUser(null);
-      })
-      .finally(() => setSessionLoading(false));
+      } finally {
+        if (!ignore) {
+          setSessionLoading(false);
+        }
+      }
+    }
+
+    restoreSession();
+    return () => {
+      ignore = true;
+    };
   }, []);
 
   useEffect(() => {
     if (!sessionUser) return;
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
     api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
-    if (!sessionUser.isGuest) {
-      api.get('/rewards').then((res) => setRewards(res.data)).catch(() => setRewards(null));
-    } else {
-      setRewards(null);
+
+    if (sessionUser.isGuest) {
+      setRewardsSummary(null);
+      return;
     }
+
+    api.get('/rewards/me')
+      .then((res) => setRewardsSummary(res.data))
+      .catch(() => setRewardsSummary(null));
   }, [sessionUser]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatLog, isChatting]);
-
-  useEffect(() => {
-    if (!orderSuccess) return;
-    orderSuccessCtaRef.current?.focus();
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOrderSuccess(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [orderSuccess]);
-
-  useEffect(() => {
-    if (!orderSuccess) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [orderSuccess]);
-
-  useEffect(() => {
-    const onKey = (e) => {
-      if (e.key === 'Escape' && chatOpen) setChatOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [chatOpen]);
-
-  const getChatFocusable = useCallback(() => {
-    if (!chatPanelRef.current) return [];
-    return Array.from(
-      chatPanelRef.current.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!chatOpen) return;
-    const trap = (e) => {
-      if (e.key !== 'Tab') return;
-      const els = getChatFocusable();
-      if (els.length === 0) return;
-      const first = els[0];
-      const last = els[els.length - 1];
-      if (e.shiftKey && document.activeElement === first) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && document.activeElement === last) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', trap);
-    return () => window.removeEventListener('keydown', trap);
-  }, [chatOpen, getChatFocusable]);
 
   const categories = useMemo(() => {
     const cats = new Set(menuItems.map(item => item.category || 'Specialty'));
@@ -214,17 +173,17 @@ export default function CustomerKiosk() {
       localStorage.setItem(CUSTOMER_SESSION_STORAGE_KEY, res.data.token);
       setSessionUser(res.data.user);
     } catch (err) {
-      console.error(err);
-      alert('Sign-in failed. Please try again.');
+      alert(err.response?.data?.error || 'Google sign-in failed.');
     }
   };
 
   const handleLogout = () => {
     localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+    sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
     setSessionUser(null);
+    setRewardsSummary(null);
     setCart([]);
     setMenuItems([]);
-    setOrderSuccess(null);
     setLanguage('en');
     setCopy(defaultKioskCopy());
     setRewards(null);
@@ -232,10 +191,10 @@ export default function CustomerKiosk() {
 
   const handleContinueAsGuest = () => {
     localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+    sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
     setSessionUser({ isGuest: true, name: 'Guest' });
+    setRewardsSummary(null);
     setCart([]);
-    setOrderSuccess(null);
-    setRewards(null);
   };
 
   const handleTranslateToggle = async () => {
@@ -256,11 +215,6 @@ export default function CustomerKiosk() {
           'stepPay',
           'emptyCart',
           'assistantHint',
-          'orderSuccessTitle',
-          'orderSuccessLead',
-          'orderSuccessThankYou',
-          'orderSuccessOrderLabel',
-          'orderSuccessCta',
         ];
         const translated = await Promise.all(keys.map((k) => translateText(copy[k], 'es')));
         const nextCopy = keys.reduce((acc, k, i) => ({ ...acc, [k]: translated[i] }), {});
@@ -368,6 +322,7 @@ export default function CustomerKiosk() {
 
   const cartTotal = cart.reduce((sum, line) => sum + (line.custom_price ?? parseFloat(line.default_price)) * line.quantity, 0);
   const itemCount = cart.reduce((n, line) => n + line.quantity, 0);
+  const rewardPreview = calculateOrderRewardPoints(cart);
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
@@ -376,7 +331,17 @@ export default function CustomerKiosk() {
 
   const processPayment = async () => {
     setCheckoutLoading(true);
-    const total_amount = cartTotal * 1.0825;
+    const subtotal = cartTotal;
+    const tax = subtotal * 0.0825;
+    const total_amount = subtotal + tax;
+    const orderSnapshot = cart.map((i) => ({
+      lineId: i.unique_id,
+      name: i.name,
+      quantity: i.quantity,
+      customization: i.customization || null,
+      unitPrice: Number(i.custom_price ?? i.default_price),
+      lineTotal: Number(i.custom_price ?? i.default_price) * i.quantity,
+    }));
     const formattedItems = cart.map((i) => ({
       menu_item_id: i.id,
       quantity: i.quantity,
@@ -390,20 +355,46 @@ export default function CustomerKiosk() {
         items: formattedItems,
         placed_via: 'customer_kiosk',
       });
-      if (res.data?.rewards) {
-        setRewards((prev) => ({
-          ...(prev || {}),
-          points_balance: res.data.rewards.points_balance,
-          points_to_next_reward:
-            Math.max(0, 50 - (Number(res.data.rewards.points_balance || 0) % 50)) % 50,
-        }));
-      }
-      setOrderSuccess({
+
+      const previousFreeBobaCount = Math.floor(Number(rewardsSummary?.pointsBalance || 0) / 5);
+      const confirmationOrder = {
         orderId: res.data.id,
-        pointsEarned: Number(res.data?.rewards?.points_earned || 0),
-      });
+        orderNumber: res.data.orderNumber,
+        items: orderSnapshot,
+        itemCount,
+        subtotal,
+        tax,
+        total: total_amount,
+        pointsEarned: res.data.pointsEarned || 0,
+        rewardsBalance: res.data.rewardsBalance,
+        freeBobaCount: res.data.freeBobaCount ?? 0,
+        pointsToNextFreeBoba: res.data.pointsToNextFreeBoba ?? 5,
+        justUnlockedFreeBoba:
+          (res.data.freeBobaCount ?? 0) > previousFreeBobaCount,
+      };
+
+      sessionStorage.setItem(
+        CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
+        JSON.stringify(confirmationOrder)
+      );
+
+      if (res.data.rewardsBalance != null && !sessionUser?.isGuest) {
+        setRewardsSummary({
+          customer: {
+            id: sessionUser.id,
+            name: sessionUser.name,
+            email: sessionUser.email,
+          },
+          pointsBalance: res.data.rewardsBalance,
+          freeBobaCount: res.data.freeBobaCount,
+          pointsToNextFreeBoba: res.data.pointsToNextFreeBoba,
+        });
+      }
       setCart([]);
       setPaymentModalOpen(false);
+      navigate('/customer/confirmation', {
+        state: { order: confirmationOrder },
+      });
     } catch (err) {
       const status = err.response?.status;
       const target = language === 'es' ? 'es' : 'en';
@@ -423,9 +414,6 @@ export default function CustomerKiosk() {
     }
     setCheckoutLoading(false);
   };
-
-  const cartOpen = cart.length > 0;
-  const mainPad = cartOpen ? 'pb-[340px] sm:pb-[300px]' : 'pb-36';
 
   const weatherLabel = useMemo(() => {
     if (!weather) return null;
@@ -514,6 +502,11 @@ export default function CustomerKiosk() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {rewardsSummary && !sessionUser.isGuest && (
+              <div className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-amber-800">
+                {rewardsSummary.pointsBalance} pts
+              </div>
+            )}
             <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-bold text-stone-700">
                 {(sessionUser.name || sessionUser.email || '?').slice(0, 1).toUpperCase()}
@@ -656,6 +649,19 @@ export default function CustomerKiosk() {
         </div>
 
         <div className="px-5 py-5 shrink-0 border-t border-stone-100">
+          {rewardsSummary && !sessionUser.isGuest && (
+            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <div className="flex items-center justify-between font-semibold">
+                <span>Rewards balance</span>
+                <span>{rewardsSummary.pointsBalance} pts</span>
+              </div>
+              {cart.length > 0 && (
+                <p className="mt-1 text-xs font-medium text-amber-800">
+                  This order adds {rewardPreview} point{rewardPreview === 1 ? '' : 's'}. Every 5 points earns 1 free boba.
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex justify-between text-sm font-medium text-stone-500 mb-1">
              <span>{language === 'es' ? 'Subtotal' : 'Subtotal'}</span>
              <span>${cartTotal.toFixed(2)}</span>
@@ -693,7 +699,6 @@ export default function CustomerKiosk() {
       </div>
 
       <div
-        ref={chatPanelRef}
         className={`fixed bottom-6 right-96 mr-6 z-50 w-[380px] origin-bottom-right transition ${
           chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
         }`}
@@ -714,7 +719,7 @@ export default function CustomerKiosk() {
             <div ref={chatEndRef} />
           </div>
           <form onSubmit={handleChatSubmit} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
-            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Habla o escribe tu pregunta…' : 'Speak or type...'} />
+            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Escribe tu pregunta…' : 'Type your question...'} />
             <button type="submit" disabled={isChatting} className="min-h-[44px] rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {language === 'es' ? 'Enviar' : 'Send'}
             </button>
@@ -829,37 +834,6 @@ export default function CustomerKiosk() {
               className="mt-6 text-sm font-bold text-slate-400 hover:text-slate-600 transition"
             >
               Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Order Success Modal */}
-      {orderSuccess && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl text-center overflow-hidden relative">
-            <div className="absolute inset-x-0 top-0 h-2 bg-green-400"></div>
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-500 text-3xl mb-6 shadow-inner">
-              ✓
-            </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-2">{copy.orderSuccessTitle}</h2>
-            <p className="text-slate-500 font-medium mb-6">{copy.orderSuccessLead}</p>
-            
-            <div className="bg-slate-50 rounded-xl py-4 mb-6 border border-slate-100">
-               <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Order Number</p>
-               <p className="text-4xl font-black text-slate-800">#{orderSuccess.orderId}</p>
-            </div>
-            {!sessionUser?.isGuest && (
-              <p className="mb-5 text-sm font-semibold text-emerald-700">
-                +{Number(orderSuccess.pointsEarned || 0)} reward points earned
-              </p>
-            )}
-            
-            <button
-              onClick={() => setOrderSuccess(null)}
-              className="w-full rounded-2xl bg-green-500 py-4 text-lg font-bold text-white shadow-sm transition hover:bg-green-600 active:scale-[0.98]"
-            >
-              Start New Order
             </button>
           </div>
         </div>

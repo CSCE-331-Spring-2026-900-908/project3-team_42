@@ -44,8 +44,6 @@ export default function MenuBoard() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-black font-sans text-stone-100">
-      <a href="#main-content" className="sr-only focus:not-sr-only">Skip to main content</a>
-
       {/* Header section */}
       <header className="flex shrink-0 items-center justify-between border-b-2 border-stone-800 bg-[#0a0a0a] px-8 py-3">
         <div className="flex items-center gap-4">

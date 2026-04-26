@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAccessibility } from '../context/AccessibilityContext';
 
@@ -22,18 +22,20 @@ export default function AccessibilityPanel() {
   } = useAccessibility();
 
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef(null);
+
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  }, []);
 
   const btnBase =
-    'flex items-center justify-center gap-2 rounded-xl border-2 px-4 py-3 text-sm font-bold transition-colors min-h-[48px] min-w-[48px]';
-  const btnOff = 'border-stone-300 bg-white text-stone-800 hover:bg-stone-100';
-  const btnOn = 'border-violet-600 bg-violet-600 text-white hover:bg-violet-700';
+    'flex min-h-[44px] items-center gap-2 rounded-xl border-2 px-3 py-2 text-sm font-semibold transition-colors';
+  const btnOn = 'border-violet-600 bg-violet-50 text-violet-800';
+  const btnOff = 'border-stone-300 bg-white text-stone-700 hover:bg-stone-50';
 
   const content = (
-    <div
-      className="pointer-events-none fixed inset-0"
-      style={{ zIndex: 2147483647 }}
-      data-a11y-overlay=""
-    >
+    <div className="a11y-ui">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -51,14 +53,12 @@ export default function AccessibilityPanel() {
       {open && (
         <div
           role="dialog"
-          aria-modal="true"
+          aria-modal="false"
           aria-label="Accessibility settings"
-          className="pointer-events-auto fixed left-6 bottom-24 z-[1] max-h-[min(calc(100vh-7rem),560px)] w-[min(92vw,380px)] overflow-y-auto rounded-2xl border-2 border-stone-300 bg-white p-5 shadow-2xl"
+          className="pointer-events-auto fixed left-6 bottom-24 z-[1] max-h-[min(calc(100vh-7rem),560px)] w-[min(92vw,360px)] overflow-y-auto rounded-2xl border-2 border-stone-300 bg-white p-5 shadow-2xl"
         >
           <div className="mb-4 flex items-center justify-between gap-2">
-            <h2 id="a11y-panel-title" className="text-lg font-bold text-stone-900">
-              Accessibility
-            </h2>
+            <h2 className="text-lg font-bold text-stone-900">Accessibility</h2>
             <button
               type="button"
               onClick={() => setOpen(false)}
@@ -71,9 +71,14 @@ export default function AccessibilityPanel() {
             </button>
           </div>
 
-          <div className="space-y-3">
-            <button type="button" onClick={toggleHighContrast} className={`${btnBase} w-full ${highContrast ? btnOn : btnOff}`}>
-              <span aria-hidden="true">&#9681;</span>
+          <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={toggleHighContrast}
+              className={`${btnBase} w-full ${highContrast ? btnOn : btnOff}`}
+              aria-pressed={highContrast}
+            >
+              <span aria-hidden="true">◐</span>
               High contrast {highContrast ? 'ON' : 'OFF'}
             </button>
 
@@ -83,20 +88,20 @@ export default function AccessibilityPanel() {
                 <span>Text size: {FONT_LABELS[fontSizeIndex]}</span>
               </div>
               <div className="flex items-center gap-1">
-                <button 
-                  type="button" 
-                  onClick={decreaseFontSize} 
-                  disabled={fontSizeIndex === 0} 
-                  className="flex h-8 w-8 items-center justify-center rounded bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-800 font-bold"
+                <button
+                  type="button"
+                  onClick={decreaseFontSize}
+                  disabled={fontSizeIndex === 0}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-800 font-bold"
                   aria-label="Decrease text size"
                 >
-                  -
+                  −
                 </button>
-                <button 
-                  type="button" 
-                  onClick={increaseFontSize} 
-                  disabled={fontSizeIndex === FONT_LABELS.length - 1} 
-                  className="flex h-8 w-8 items-center justify-center rounded bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-800 font-bold"
+                <button
+                  type="button"
+                  onClick={increaseFontSize}
+                  disabled={fontSizeIndex === FONT_LABELS.length - 1}
+                  className="flex h-9 w-9 items-center justify-center rounded-lg border border-stone-300 bg-stone-100 hover:bg-stone-200 disabled:opacity-50 text-stone-800 font-bold"
                   aria-label="Increase text size"
                 >
                   +
@@ -104,12 +109,21 @@ export default function AccessibilityPanel() {
               </div>
             </div>
 
-            <button type="button" onClick={toggleReduceMotion} className={`${btnBase} w-full ${reduceMotion ? btnOn : btnOff}`}>
-              <span aria-hidden="true">&#9632;</span>
+            <button
+              type="button"
+              onClick={toggleReduceMotion}
+              className={`${btnBase} w-full ${reduceMotion ? btnOn : btnOff}`}
+              aria-pressed={reduceMotion}
+            >
+              <span aria-hidden="true">▪</span>
               Reduce motion {reduceMotion ? 'ON' : 'OFF'}
             </button>
 
-            <button type="button" onClick={resetAll} className={`${btnBase} w-full border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100`}>
+            <button
+              type="button"
+              onClick={resetAll}
+              className={`${btnBase} w-full border-stone-200 bg-stone-50 text-stone-600 hover:bg-stone-100`}
+            >
               Reset all
             </button>
           </div>
