@@ -57,6 +57,11 @@ export default function Portal() {
       />
       <div id="main-content" className="relative z-10 mx-auto flex min-h-screen max-w-5xl flex-col justify-center px-5 py-14 sm:px-8" role="main">
         <header className="mb-12 text-center sm:mb-16">
+          <img
+            src="/logo.jpg"
+            alt="Reveille Boba logo"
+            className="mx-auto mb-6 h-40 w-40 object-contain drop-shadow-[0_10px_30px_rgba(91,33,182,0.18)] sm:h-48 sm:w-48"
+          />
           <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">Team 42 · In-store hub</p>
           <h1 className="font-display text-4xl font-bold tracking-tight text-stone-900 sm:text-5xl">
             Reveille Boba
@@ -91,9 +96,6 @@ export default function Portal() {
           ))}
         </div>
 
-        <p className="mt-12 text-center text-xs text-stone-400">
-          Portal only — opened interfaces do not link back here.
-        </p>
       </div>
     </div>
   );

@@ -70,7 +70,7 @@ export default function OrderConfirmation() {
               </p>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-3 lg:w-[440px] lg:grid-cols-1">
+            <div className={`grid gap-4 lg:grid-cols-1 ${order.isGuest ? 'sm:grid-cols-2 lg:w-[360px]' : 'sm:grid-cols-3 lg:w-[440px]'}`}>
               <div className="rounded-3xl border border-stone-200 bg-stone-50 px-5 py-4">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-stone-400">Order number</p>
                 <p className="mt-2 text-4xl font-black text-stone-900">{order.orderNumber || order.orderId}</p>
@@ -79,10 +79,12 @@ export default function OrderConfirmation() {
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-500">Total paid</p>
                 <p className="mt-2 text-3xl font-black text-violet-950">{formatMoney(order.total)}</p>
               </div>
-              <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4">
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-600">Rewards points</p>
-                <p className="mt-2 text-3xl font-black text-amber-950">+{order.pointsEarned}</p>
-              </div>
+              {!order.isGuest && (
+                <div className="rounded-3xl border border-amber-200 bg-amber-50 px-5 py-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.18em] text-amber-600">Rewards points</p>
+                  <p className="mt-2 text-3xl font-black text-amber-950">+{order.pointsEarned}</p>
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -145,6 +147,49 @@ export default function OrderConfirmation() {
           </section>
 
           <section className="rounded-[28px] border border-stone-200 bg-white px-6 py-6 shadow-sm sm:px-8">
+            {order.isGuest ? (
+              <div className="flex h-full flex-col">
+                <div className="rounded-[26px] bg-[linear-gradient(135deg,_rgba(251,191,36,0.14),_rgba(196,181,253,0.18),_rgba(45,212,191,0.10))] px-6 py-7">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 text-2xl shadow-sm">
+                    🎁
+                  </div>
+                  <h2 className="mt-4 text-2xl font-black leading-tight text-stone-950">
+                    Earn points on your next boba.
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-stone-600">
+                    Sign in with Google and you'll start earning {' '}
+                    <span className="font-semibold text-stone-900">1 point per drink</span>. Every {BOBAS_PER_FREE_REWARD} points = 1 free boba.
+                  </p>
+
+                  <ul className="mt-5 space-y-2 text-sm text-stone-700">
+                    <li className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500" />
+                      Track free bobas right from the kiosk
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
+                      Pick up where you left off on any device
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />
+                      One tap — no password to remember
+                    </li>
+                  </ul>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleStartNewOrder}
+                  className="mt-6 w-full rounded-2xl bg-stone-900 py-4 text-lg font-bold text-white transition hover:bg-stone-800 active:scale-[0.99]"
+                >
+                  Sign in & start a new order
+                </button>
+                <p className="mt-3 text-center text-xs text-stone-400">
+                  This order won't earn points, but your next one can.
+                </p>
+              </div>
+            ) : (
+            <>
             <div className="rounded-[26px] bg-[linear-gradient(135deg,_rgba(251,191,36,0.12),_rgba(45,212,191,0.12),_rgba(196,181,253,0.16))] px-5 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -208,6 +253,8 @@ export default function OrderConfirmation() {
             >
               Start new order
             </button>
+            </>
+            )}
           </section>
         </div>
       </div>
