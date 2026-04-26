@@ -3,15 +3,29 @@
 --    node generateSeedData.js
 -- 2) Then load this file with psql (init.js handles this).
 
-\copy users (id, name, role, email) FROM 'seed-data/users.csv' WITH (FORMAT csv, HEADER true);
+\copy users (id, name, role, email, is_active, hired_at, terminated_at) FROM 'seed-data/users.csv' WITH (FORMAT csv, HEADER true);
+\copy employee_shifts (id, user_id, shift_date, start_time, end_time, role, notes) FROM 'seed-data/employee_shifts.csv' WITH (FORMAT csv, HEADER true);
 \copy inventory (id, name, category, quantity, unit, restock_threshold) FROM 'seed-data/inventory.csv' WITH (FORMAT csv, HEADER true);
 \copy menu_items (id, name, description, category, default_price, discount_percent, image_url, is_available) FROM 'seed-data/menu_items.csv' WITH (FORMAT csv, HEADER true);
 \copy ProductInventory (ProductID, InventoryID) FROM 'seed-data/product_inventory.csv' WITH (FORMAT csv, HEADER true);
 \copy "Transaction" (TransactionID, TransactionTimestamp, TotalAmount) FROM 'seed-data/transactions.csv' WITH (FORMAT csv, HEADER true);
 \copy TransactionItem (TransactionItemID, TransactionID, ProductID, Quantity, PriceAtPurchase) FROM 'seed-data/transaction_items.csv' WITH (FORMAT csv, HEADER true);
 
+-- Seed one payment row per transaction (legacy data defaults to unspecified).
+INSERT INTO transaction_payments (transaction_id, payment_method, amount)
+SELECT transactionid, 'unspecified', totalamount
+FROM "Transaction";
+
+-- Seed demo suppliers.
+INSERT INTO suppliers (name, contact_name, contact_email, contact_phone)
+VALUES
+  ('Aggie Tea Wholesale', 'Dana Lee', 'orders@aggietea.example', '979-555-0101'),
+  ('Boba Planet Supply', 'Marco Chen', 'sales@bobaplanet.example', '979-555-0132')
+ON CONFLICT (name) DO NOTHING;
+
 -- Keep serial sequences consistent with explicitly loaded IDs.
 SELECT setval(pg_get_serial_sequence('users', 'id'), COALESCE((SELECT MAX(id) FROM users), 1), true);
+SELECT setval(pg_get_serial_sequence('employee_shifts', 'id'), COALESCE((SELECT MAX(id) FROM employee_shifts), 1), true);
 SELECT setval(pg_get_serial_sequence('inventory', 'id'), COALESCE((SELECT MAX(id) FROM inventory), 1), true);
 SELECT setval(pg_get_serial_sequence('menu_items', 'id'), COALESCE((SELECT MAX(id) FROM menu_items), 1), true);
 SELECT setval(pg_get_serial_sequence('"Transaction"', 'transactionid'), COALESCE((SELECT MAX(transactionid) FROM "Transaction"), 1), true);

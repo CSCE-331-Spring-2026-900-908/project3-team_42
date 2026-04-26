@@ -53,12 +53,43 @@ function isoDateHoursAgo(hoursAgo) {
 }
 
 function buildUsers() {
+  const hiredAt = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
   return [
-    { id: 1, name: 'Manager Reveille', role: 'manager', email: 'reveille.bubbletea@gmail.com' },
-    { id: 2, name: 'Cashier Alice', role: 'cashier', email: 'alice@boba.com' },
-    { id: 3, name: 'Cashier Bob', role: 'cashier', email: 'bob@boba.com' },
-    { id: 4, name: 'Self-Service Kiosk', role: 'cashier', email: 'kiosk@reveilleboba.local' },
+    { id: 1, name: 'Manager Reveille', role: 'manager', email: 'reveille.bubbletea@gmail.com', is_active: true, hired_at: hiredAt, terminated_at: '' },
+    { id: 2, name: 'Cashier Alice', role: 'cashier', email: 'alice@boba.com', is_active: true, hired_at: hiredAt, terminated_at: '' },
+    { id: 3, name: 'Cashier Bob', role: 'cashier', email: 'bob@boba.com', is_active: true, hired_at: hiredAt, terminated_at: '' },
+    { id: 4, name: 'Self-Service Kiosk', role: 'cashier', email: 'kiosk@reveilleboba.local', is_active: true, hired_at: hiredAt, terminated_at: '' },
   ];
+}
+
+function buildEmployeeShifts() {
+  const rows = [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const templates = [
+    { user_id: 1, start_time: '09:00:00', end_time: '17:00:00', role: 'Manager' },
+    { user_id: 2, start_time: '10:00:00', end_time: '16:00:00', role: 'Cashier' },
+    { user_id: 3, start_time: '14:00:00', end_time: '20:00:00', role: 'Cashier' },
+  ];
+
+  let id = 1;
+  for (let d = 0; d < 14; d++) {
+    const day = new Date(start);
+    day.setDate(start.getDate() + d);
+    const shiftDate = day.toISOString().slice(0, 10);
+    for (const t of templates) {
+      rows.push({
+        id: id++,
+        user_id: t.user_id,
+        shift_date: shiftDate,
+        start_time: t.start_time,
+        end_time: t.end_time,
+        role: t.role,
+        notes: '',
+      });
+    }
+  }
+  return rows;
 }
 
 function buildInventory() {
@@ -226,13 +257,15 @@ function main() {
   ensureDir();
 
   const users = buildUsers();
+  const employeeShifts = buildEmployeeShifts();
   const inventory = buildInventory();
   const menuItems = buildMenuItems();
   const productInventory = buildProductInventory(menuItems);
   const txCount = randomInt(40, 70);
   const { transactions, transactionItems, orderItems } = buildTransactions(menuItems, txCount);
 
-  writeCsv('users.csv', ['id', 'name', 'role', 'email'], users);
+  writeCsv('users.csv', ['id', 'name', 'role', 'email', 'is_active', 'hired_at', 'terminated_at'], users);
+  writeCsv('employee_shifts.csv', ['id', 'user_id', 'shift_date', 'start_time', 'end_time', 'role', 'notes'], employeeShifts);
   writeCsv('inventory.csv', ['id', 'name', 'category', 'quantity', 'unit', 'restock_threshold'], inventory);
   writeCsv(
     'menu_items.csv',
