@@ -5,6 +5,7 @@ const { GoogleGenAI } = require('@google/genai');
 const { tryGetCustomerIdFromAuthHeader } = require('../lib/customerSession');
 
 const TAX_RATE = 0.0825;
+const REWARD_POINTS_PER_DOLLAR = 1;
 
 function parseISODateParam(dateStr) {
     // Expects YYYY-MM-DD from the frontend.
@@ -19,6 +20,12 @@ function endExclusiveFromInclusiveDate(dateStr) {
     const endExclusive = new Date(start);
     endExclusive.setDate(endExclusive.getDate() + 1);
     return endExclusive;
+}
+
+function calculateOrderPoints(totalAmount) {
+    const numeric = Number(totalAmount || 0);
+    if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+    return Math.floor(numeric * REWARD_POINTS_PER_DOLLAR);
 }
 
 // Get all menu items
@@ -64,9 +71,10 @@ router.post('/orders', async (req, res) => {
     try {
         await db.query('BEGIN');
 
+        const pointsEarned = customerAccountId ? calculateOrderPoints(total_amount) : 0;
         const orderResult = await db.query(
-            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status) VALUES ($1, $2, $3, 'completed') RETURNING id",
-            [cashier_id, customerAccountId, total_amount]
+            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status, points_earned) VALUES ($1, $2, $3, 'completed', $4) RETURNING id",
+            [cashier_id, customerAccountId, total_amount, pointsEarned]
         );
         const orderId = orderResult.rows[0].id;
 
@@ -140,9 +148,61 @@ router.post('/orders', async (req, res) => {
         );
 
         await db.query('COMMIT');
-        res.status(201).json({ id: orderId, message: 'Order created successfully' });
+        let rewards = null;
+        if (customerAccountId) {
+            const rewardsRes = await db.query(
+                `SELECT COALESCE(SUM(points_earned), 0) AS points_balance
+                 FROM orders
+                 WHERE customer_account_id = $1 AND status = 'completed'`,
+                [customerAccountId]
+            );
+            const pointsBalance = Number(rewardsRes.rows[0]?.points_balance || 0);
+            rewards = {
+                points_earned: pointsEarned,
+                points_balance: pointsBalance,
+            };
+        }
+
+        res.status(201).json({
+            id: orderId,
+            message: 'Order created successfully',
+            rewards,
+        });
     } catch (err) {
         await db.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/rewards', async (req, res) => {
+    try {
+        const customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
+        if (customerAccountId == null) {
+            return res.status(401).json({ error: 'Customer login required' });
+        }
+
+        const result = await db.query(
+            `SELECT
+                COALESCE(SUM(points_earned), 0) AS points_balance,
+                COUNT(*) FILTER (WHERE status = 'completed') AS completed_orders
+             FROM orders
+             WHERE customer_account_id = $1`,
+            [customerAccountId]
+        );
+
+        const pointsBalance = Number(result.rows[0]?.points_balance || 0);
+        const completedOrders = Number(result.rows[0]?.completed_orders || 0);
+        const rewardThreshold = 50;
+        const remainder = pointsBalance % rewardThreshold;
+        const pointsToNextReward = remainder === 0 ? 0 : rewardThreshold - remainder;
+
+        res.json({
+            points_balance: pointsBalance,
+            completed_orders: completedOrders,
+            reward_threshold: rewardThreshold,
+            points_to_next_reward: pointsToNextReward,
+        });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

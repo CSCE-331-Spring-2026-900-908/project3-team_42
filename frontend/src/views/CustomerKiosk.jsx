@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
 import api, { CUSTOMER_SESSION_STORAGE_KEY } from '../api';
-import VoiceDictationButton from '../components/VoiceDictationButton';
 
 const KIOSK_CASHIER_ID = 3;
 
@@ -64,6 +63,7 @@ export default function CustomerKiosk() {
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
+  const [rewards, setRewards] = useState(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLog, setChatLog] = useState([]);
@@ -95,6 +95,11 @@ export default function CustomerKiosk() {
     if (!sessionUser) return;
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
     api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
+    if (!sessionUser.isGuest) {
+      api.get('/rewards').then((res) => setRewards(res.data)).catch(() => setRewards(null));
+    } else {
+      setRewards(null);
+    }
   }, [sessionUser]);
 
   useEffect(() => {
@@ -222,6 +227,7 @@ export default function CustomerKiosk() {
     setOrderSuccess(null);
     setLanguage('en');
     setCopy(defaultKioskCopy());
+    setRewards(null);
   };
 
   const handleContinueAsGuest = () => {
@@ -229,6 +235,7 @@ export default function CustomerKiosk() {
     setSessionUser({ isGuest: true, name: 'Guest' });
     setCart([]);
     setOrderSuccess(null);
+    setRewards(null);
   };
 
   const handleTranslateToggle = async () => {
@@ -383,7 +390,18 @@ export default function CustomerKiosk() {
         items: formattedItems,
         placed_via: 'customer_kiosk',
       });
-      setOrderSuccess({ orderId: res.data.id });
+      if (res.data?.rewards) {
+        setRewards((prev) => ({
+          ...(prev || {}),
+          points_balance: res.data.rewards.points_balance,
+          points_to_next_reward:
+            Math.max(0, 50 - (Number(res.data.rewards.points_balance || 0) % 50)) % 50,
+        }));
+      }
+      setOrderSuccess({
+        orderId: res.data.id,
+        pointsEarned: Number(res.data?.rewards?.points_earned || 0),
+      });
       setCart([]);
       setPaymentModalOpen(false);
     } catch (err) {
@@ -589,6 +607,19 @@ export default function CustomerKiosk() {
             {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </span>
         </div>
+        {!sessionUser?.isGuest && rewards && (
+          <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Rewards</p>
+            <p className="mt-1 text-xl font-black text-emerald-900">
+              {Number(rewards.points_balance || 0)} pts
+            </p>
+            <p className="text-xs text-emerald-800">
+              {Number(rewards.points_to_next_reward || 0) === 0
+                ? 'Reward unlocked! Ask cashier to redeem.'
+                : `${Number(rewards.points_to_next_reward || 0)} pts to next reward`}
+            </p>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-5 py-4 relative">
           {cart.length === 0 ? (
@@ -683,7 +714,6 @@ export default function CustomerKiosk() {
             <div ref={chatEndRef} />
           </div>
           <form onSubmit={handleChatSubmit} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
-            <VoiceDictationButton lang={language === 'es' ? 'es-ES' : 'en-US'} onTranscript={(text) => setChatInput((prev) => prev + text)} size="sm" />
             <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Habla o escribe tu pregunta…' : 'Speak or type...'} />
             <button type="submit" disabled={isChatting} className="min-h-[44px] rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {language === 'es' ? 'Enviar' : 'Send'}
@@ -819,6 +849,11 @@ export default function CustomerKiosk() {
                <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Order Number</p>
                <p className="text-4xl font-black text-slate-800">#{orderSuccess.orderId}</p>
             </div>
+            {!sessionUser?.isGuest && (
+              <p className="mb-5 text-sm font-semibold text-emerald-700">
+                +{Number(orderSuccess.pointsEarned || 0)} reward points earned
+              </p>
+            )}
             
             <button
               onClick={() => setOrderSuccess(null)}

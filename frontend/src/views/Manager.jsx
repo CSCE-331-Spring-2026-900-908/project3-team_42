@@ -4,7 +4,6 @@ import { jwtDecode } from 'jwt-decode';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Modal from '../components/manager/Modal';
-import VoiceDictationButton from '../components/VoiceDictationButton';
 import {
   DonutChart,
   HorizontalBarChart,
@@ -473,10 +472,6 @@ export default function Manager() {
                             onChange={(e) => setSignature(e.target.value)}
                             placeholder="Your name or initials"
                             className="rounded-lg border border-stone-200 px-3 py-2 text-sm flex-1"
-                          />
-                          <VoiceDictationButton
-                            onTranscript={(text) => setSignature((prev) => prev + text)}
-                            size="sm"
                           />
                         </div>
                       </div>
