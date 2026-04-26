@@ -61,6 +61,8 @@ export default function Cashier() {
     { id: 'strawberry_popping_boba', name: 'Strawberry Popping Boba', price: 0.50 },
   ];
 
+  const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
+
   const handleDrinkClick = (item) => {
     setCustomizingItem(item);
     setSweetness('100');
@@ -75,7 +77,7 @@ export default function Cashier() {
   };
 
   const confirmCustomization = () => {
-    const basePrice = parseFloat(customizingItem.default_price);
+    const basePrice = getBasePrice(customizingItem);
     const toppingsPrice = toppings.length * 0.50;
     const customPrice = basePrice + toppingsPrice;
     
@@ -128,14 +130,14 @@ export default function Cashier() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
-    const total_amount = cart.reduce((sum, item) => sum + (item.custom_price ?? parseFloat(item.default_price)) * item.quantity, 0);
+    const total_amount = cart.reduce((sum, item) => sum + (item.custom_price ?? getBasePrice(item)) * item.quantity, 0);
 
     try {
       const formattedItems = cart.map((i) => ({
         menu_item_id: i.id,
         quantity: i.quantity,
         customization: i.customization,
-        price: i.custom_price ?? i.default_price,
+        price: i.custom_price ?? getBasePrice(i),
       }));
 
       const res = await api.post('/orders', {
@@ -151,7 +153,7 @@ export default function Cashier() {
     }
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.custom_price ?? parseFloat(item.default_price)) * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + (item.custom_price ?? getBasePrice(item)) * item.quantity, 0);
   const tax = subtotal * 0.0825; // 8.25% TX Tax approx
   const total = subtotal + tax;
 
@@ -258,7 +260,7 @@ export default function Cashier() {
                   {item.name}
                 </span>
                 <span className="mt-1.5 text-sm font-medium text-slate-500">
-                  ${parseFloat(item.default_price).toFixed(2)}
+                  ${getBasePrice(item).toFixed(2)}
                 </span>
               </button>
             ))}
@@ -283,7 +285,7 @@ export default function Cashier() {
                 <div key={item.unique_id} className="flex flex-col">
                   <div className="flex justify-between items-start font-bold text-slate-800 text-[15px]">
                     <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
-                    <span>${(item.custom_price ?? parseFloat(item.default_price)).toFixed(2)}</span>
+                    <span>${(item.custom_price ?? getBasePrice(item)).toFixed(2)}</span>
                   </div>
                   {item.customization && (
                     <div className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -409,7 +411,7 @@ export default function Cashier() {
                 onClick={confirmCustomization}
                 className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
               >
-                Add â€” <span className="tabular-nums">${(parseFloat(customizingItem.default_price) + toppings.length * 0.50).toFixed(2)}</span>
+                Add — <span className="tabular-nums">${(getBasePrice(customizingItem) + toppings.length * 0.50).toFixed(2)}</span>
               </button>
             </div>
           </div>

@@ -53,12 +53,43 @@ function isoDateHoursAgo(hoursAgo) {
 }
 
 function buildUsers() {
+  const hiredAt = new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString().replace('T', ' ').slice(0, 19);
   return [
-    { id: 1, name: 'Manager Reveille', role: 'manager', email: 'reveille.bubbletea@gmail.com' },
-    { id: 2, name: 'Cashier Alice', role: 'cashier', email: 'alice@boba.com' },
-    { id: 3, name: 'Cashier Bob', role: 'cashier', email: 'bob@boba.com' },
-    { id: 4, name: 'Self-Service Kiosk', role: 'cashier', email: 'kiosk@reveilleboba.local' },
+    { id: 1, name: 'Manager Reveille', role: 'manager', email: 'reveille.bubbletea@gmail.com', is_active: true, hired_at: hiredAt, terminated_at: '' },
+    { id: 2, name: 'Cashier Alice', role: 'cashier', email: 'alice@boba.com', is_active: true, hired_at: hiredAt, terminated_at: '' },
+    { id: 3, name: 'Cashier Bob', role: 'cashier', email: 'bob@boba.com', is_active: true, hired_at: hiredAt, terminated_at: '' },
+    { id: 4, name: 'Self-Service Kiosk', role: 'cashier', email: 'kiosk@reveilleboba.local', is_active: true, hired_at: hiredAt, terminated_at: '' },
   ];
+}
+
+function buildEmployeeShifts() {
+  const rows = [];
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const templates = [
+    { user_id: 1, start_time: '09:00:00', end_time: '17:00:00', role: 'Manager' },
+    { user_id: 2, start_time: '10:00:00', end_time: '16:00:00', role: 'Cashier' },
+    { user_id: 3, start_time: '14:00:00', end_time: '20:00:00', role: 'Cashier' },
+  ];
+
+  let id = 1;
+  for (let d = 0; d < 14; d++) {
+    const day = new Date(start);
+    day.setDate(start.getDate() + d);
+    const shiftDate = day.toISOString().slice(0, 10);
+    for (const t of templates) {
+      rows.push({
+        id: id++,
+        user_id: t.user_id,
+        shift_date: shiftDate,
+        start_time: t.start_time,
+        end_time: t.end_time,
+        role: t.role,
+        notes: '',
+      });
+    }
+  }
+  return rows;
 }
 
 function buildInventory() {
@@ -134,17 +165,49 @@ function buildMenuItems() {
     description: "Delicious " + item.name,
     category: item.category,
     default_price: item.default_price,
+    discount_percent: 0,
     image_url: '/images/placeholder.png',
     is_available: true
   }));
 }
 
 function buildProductInventory(menuItems) {
-  // Just map random products to inventory for seed to satisfy foreign constraints
-  return menuItems.map(item => ({
-    ProductID: item.id,
-    InventoryID: 1
-  }));
+  // Build deterministic, category-aware ingredient mappings so product-usage/inventory reports
+  // reflect realistic consumption patterns instead of all products consuming one item.
+  const pairs = [];
+  const push = (productId, inventoryIds) => {
+    for (const invId of inventoryIds) {
+      pairs.push({ ProductID: productId, InventoryID: invId });
+    }
+  };
+
+  for (const item of menuItems) {
+    const name = String(item.name || '').toLowerCase();
+    const category = String(item.category || '').toLowerCase();
+
+    // Base packaging for all drinks.
+    const ingredients = [11, 12]; // cups + straws
+
+    // Tea bases
+    if (name.includes('jasmine')) ingredients.push(10);
+    else if (name.includes('green')) ingredients.push(3);
+    else ingredients.push(2); // default black tea
+
+    // Syrups/flavors
+    if (name.includes('mango')) ingredients.push(6);
+    if (name.includes('strawberry') || name.includes('berry')) ingredients.push(9);
+    if (name.includes('taro')) ingredients.push(7);
+    if (name.includes('brown sugar') || name.includes('tiger') || name.includes('honey')) ingredients.push(8);
+
+    // Dairy + boba families
+    if (category === 'milk tea' || category === 'matcha' || name.includes('milk')) ingredients.push(4);
+    if (name.includes('pearl') || name.includes('boba')) ingredients.push(1);
+    if (name.includes('lychee')) ingredients.push(5);
+
+    push(item.id, [...new Set(ingredients)]);
+  }
+
+  return pairs;
 }
 
 function buildTransactions(menuItems, count) {
@@ -194,15 +257,21 @@ function main() {
   ensureDir();
 
   const users = buildUsers();
+  const employeeShifts = buildEmployeeShifts();
   const inventory = buildInventory();
   const menuItems = buildMenuItems();
   const productInventory = buildProductInventory(menuItems);
   const txCount = randomInt(40, 70);
   const { transactions, transactionItems, orderItems } = buildTransactions(menuItems, txCount);
 
-  writeCsv('users.csv', ['id', 'name', 'role', 'email'], users);
+  writeCsv('users.csv', ['id', 'name', 'role', 'email', 'is_active', 'hired_at', 'terminated_at'], users);
+  writeCsv('employee_shifts.csv', ['id', 'user_id', 'shift_date', 'start_time', 'end_time', 'role', 'notes'], employeeShifts);
   writeCsv('inventory.csv', ['id', 'name', 'category', 'quantity', 'unit', 'restock_threshold'], inventory);
-  writeCsv('menu_items.csv', ['id', 'name', 'description', 'category', 'default_price', 'image_url', 'is_available'], menuItems);
+  writeCsv(
+    'menu_items.csv',
+    ['id', 'name', 'description', 'category', 'default_price', 'discount_percent', 'image_url', 'is_available'],
+    menuItems
+  );
   writeCsv('product_inventory.csv', ['ProductID', 'InventoryID'], productInventory);
   writeCsv('transactions.csv', ['TransactionID', 'TransactionTimestamp', 'TotalAmount'], transactions);
   writeCsv('transaction_items.csv', ['TransactionItemID', 'TransactionID', 'ProductID', 'Quantity', 'PriceAtPurchase'], transactionItems);
