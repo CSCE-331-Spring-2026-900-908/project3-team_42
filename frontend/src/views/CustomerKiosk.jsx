@@ -1,22 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { GoogleLogin } from '@react-oauth/google';
-import api, {
-  CUSTOMER_SESSION_STORAGE_KEY,
-  CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
-} from '../api';
-
-const KIOSK_CASHIER_ID = 3;
-
-const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-function firstNameFromUser(user) {
-  if (!user) return '';
-  const n = (user.name || '').trim();
-  if (n) return n.split(/\s+/)[0];
-  const local = (user.email || '').split('@')[0];
-  return local || '';
-}
+import api from '../api';
 
 function defaultKioskCopy() {
   return {
@@ -31,21 +15,11 @@ function defaultKioskCopy() {
     stepPay: 'Pay',
     emptyCart: 'Tap a drink to start your order',
     assistantHint: 'Ask about flavors, ice, or toppings',
-    signInTitle: 'Sign in to order',
-    signInHint: 'Use your Google account for a secure, personalized kiosk session.',
-    signInUnavailable: 'Google sign-in is unavailable on this kiosk right now.',
-    continueGuest: 'Continue as guest',
-    guestHint: 'Guest checkout is available. You can still place an order without signing in.',
-    signOut: 'Sign out',
-    endSession: 'End session',
-    signedInAs: 'Signed in',
   };
 }
 
 export default function CustomerKiosk() {
   const navigate = useNavigate();
-  const [sessionUser, setSessionUser] = useState(null);
-  const [sessionLoading, setSessionLoading] = useState(true);
 
   const [menuItems, setMenuItems] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -54,8 +28,6 @@ export default function CustomerKiosk() {
   const [ice, setIce] = useState('Regular');
   const [selectedToppings, setSelectedToppings] = useState([]);
   const [cart, setCart] = useState([]);
-  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
@@ -68,30 +40,12 @@ export default function CustomerKiosk() {
   const chatPanelRef = useRef(null);
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
-  const googleSignInAvailable = Boolean(googleClientId);
   const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
 
   useEffect(() => {
-    const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
-    if (!token) {
-      setSessionLoading(false);
-      return;
-    }
-    api
-      .get('/auth/me')
-      .then((res) => setSessionUser(res.data.user))
-      .catch(() => {
-        localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
-        setSessionUser(null);
-      })
-      .finally(() => setSessionLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!sessionUser) return;
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
     api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
-  }, [sessionUser]);
+  }, []);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -178,34 +132,6 @@ export default function CustomerKiosk() {
     } catch {
       return text;
     }
-  };
-
-  const handleGoogleSuccess = async (credentialResponse) => {
-    try {
-      const res = await api.post('/auth/google', { credential: credentialResponse.credential });
-      localStorage.setItem(CUSTOMER_SESSION_STORAGE_KEY, res.data.token);
-      setSessionUser(res.data.user);
-    } catch (err) {
-      console.error(err);
-      alert('Sign-in failed. Please try again.');
-    }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
-    sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
-    setSessionUser(null);
-    setCart([]);
-    setMenuItems([]);
-    setLanguage('en');
-    setCopy(defaultKioskCopy());
-  };
-
-  const handleContinueAsGuest = () => {
-    localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
-    sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
-    setSessionUser({ isGuest: true, name: 'Guest' });
-    setCart([]);
   };
 
   const handleTranslateToggle = async () => {
@@ -343,83 +269,8 @@ export default function CustomerKiosk() {
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
-    setPaymentModalOpen(true);
+    navigate('/customer/checkout', { state: { cart, cartTotal } });
   };
-
-  const processPayment = async () => {
-    setCheckoutLoading(true);
-    const subtotal = cartTotal;
-    const tax = subtotal * 0.0825;
-    const total_amount = subtotal + tax;
-    const orderSnapshot = cart.map((i) => ({
-      id: i.unique_id ?? i.id,
-      name: i.name,
-      quantity: i.quantity,
-      customization: i.customization || null,
-      unitPrice: Number(i.custom_price ?? getBasePrice(i)),
-      lineTotal: Number(i.custom_price ?? getBasePrice(i)) * i.quantity,
-    }));
-    const formattedItems = cart.map((i) => ({
-      menu_item_id: i.id,
-      quantity: i.quantity,
-      customization: i.customization || null,
-      price: i.custom_price ?? getBasePrice(i),
-    }));
-    try {
-      const res = await api.post('/orders', {
-        cashier_id: KIOSK_CASHIER_ID,
-        total_amount,
-        items: formattedItems,
-        placed_via: 'customer_kiosk',
-      });
-
-      const confirmationOrder = {
-        orderId: res.data.id,
-        orderNumber: res.data.orderNumber,
-        items: orderSnapshot,
-        itemCount: cart.reduce((n, line) => n + line.quantity, 0),
-        subtotal,
-        tax,
-        total: total_amount,
-        pointsEarned: res.data.pointsEarned || 0,
-        rewardsBalance: res.data.rewardsBalance,
-        freeBobaCount: res.data.freeBobaCount ?? 0,
-        pointsToNextFreeBoba: res.data.pointsToNextFreeBoba ?? 5,
-        isGuest: !!sessionUser?.isGuest,
-      };
-
-      sessionStorage.setItem(
-        CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
-        JSON.stringify(confirmationOrder)
-      );
-
-      setCart([]);
-      setPaymentModalOpen(false);
-      navigate('/customer/confirmation', {
-        state: { order: confirmationOrder },
-      });
-    } catch (err) {
-      const status = err.response?.status;
-      const target = language === 'es' ? 'es' : 'en';
-      if (status === 401) {
-        localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
-        setSessionUser(null);
-        const text = await translateText(
-          'Your session expired. Please sign in again to complete checkout.',
-          target
-        );
-        alert(text);
-      } else {
-        const text = await translateText('Checkout failed. Please try again.', target);
-        alert(text);
-      }
-      console.error(err);
-    }
-    setCheckoutLoading(false);
-  };
-
-  const cartOpen = cart.length > 0;
-  const mainPad = cartOpen ? 'pb-[340px] sm:pb-[300px]' : 'pb-36';
 
   const weatherLabel = useMemo(() => {
     if (!weather) return null;
@@ -428,62 +279,6 @@ export default function CustomerKiosk() {
     if (temp <= 55) return { emoji: '\u{1F327}\uFE0F', text: 'Chilly today - warm up with these!', bg: 'bg-sky-50 border-sky-200 text-sky-800' };
     return { emoji: '\u{1F324}\uFE0F', text: 'Nice day - try something special!', bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
   }, [weather]);
-
-  if (sessionLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-violet-50 to-white font-[family-name:var(--font-ui)]">
-        <p className="text-lg font-semibold text-violet-800" role="status">
-          Loading...
-        </p>
-      </div>
-    );
-  }
-
-  if (!sessionUser) {
-    return (
-      <div className="relative min-h-screen bg-gradient-to-b from-violet-100/80 via-fuchsia-50/40 to-white font-[family-name:var(--font-ui)] px-5 py-16">
-        <button 
-          onClick={() => navigate(-1)} 
-          className="absolute top-6 left-6 flex items-center justify-center p-3 rounded-full bg-white/60 hover:bg-white text-violet-900 shadow-sm backdrop-blur-sm transition"
-          aria-label="Back"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-        </button>
-        <main className="mx-auto flex max-w-lg flex-col items-center rounded-3xl border border-violet-200/80 bg-white/90 p-10 shadow-xl shadow-violet-900/10 backdrop-blur-md">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-violet-600">Customer kiosk</p>
-          <h1 className="mt-3 text-center font-display text-3xl font-bold text-violet-950">{copy.signInTitle}</h1>
-          <p className="mt-4 text-center text-stone-600">{copy.signInHint}</p>
-          <div className="mt-10 flex flex-col items-center gap-4">
-            {googleSignInAvailable ? (
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => alert('Google sign-in was cancelled or failed.')}
-                text="signin_with"
-                shape="pill"
-                size="large"
-                theme="filled_blue"
-              />
-            ) : (
-              <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">
-                {copy.signInUnavailable}
-              </p>
-            )}
-            <button
-              type="button"
-              onClick={handleContinueAsGuest}
-              className="min-h-[48px] rounded-2xl border border-violet-200 bg-white px-6 py-3 text-sm font-semibold text-violet-900 shadow-sm transition hover:bg-violet-50"
-            >
-              {copy.continueGuest}
-            </button>
-            <p className="max-w-sm text-center text-xs text-stone-500">{copy.guestHint}</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
 
   return (
     <div className="flex h-screen flex-row bg-[#faf9f7] font-sans overflow-hidden text-stone-800">
@@ -508,15 +303,6 @@ export default function CustomerKiosk() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-bold text-stone-700">
-                {(sessionUser.name || sessionUser.email || '?').slice(0, 1).toUpperCase()}
-              </span>
-              <span className="text-sm font-medium text-stone-700 pr-1">{firstNameFromUser(sessionUser)}</span>
-            </div>
-            <button type="button" onClick={handleLogout} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50">
-              {sessionUser.isGuest ? copy.endSession : copy.signOut}
-            </button>
             <button type="button" onClick={handleTranslateToggle} disabled={isTranslating} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-50">
               {isTranslating ? '...' : (language === 'es' ? 'English' : 'Espanol')}
             </button>
@@ -653,10 +439,10 @@ export default function CustomerKiosk() {
           <button
             id="checkout-btn"
             onClick={handleCheckout}
-            disabled={cart.length === 0 || checkoutLoading}
+            disabled={cart.length === 0}
             className="w-full mt-5 rounded-2xl bg-stone-800 py-4 text-lg font-bold text-white transition hover:bg-stone-700 active:scale-[0.98] disabled:opacity-40 disabled:hover:bg-stone-800"
           >
-            {checkoutLoading ? '...' : copy.checkout}
+            {copy.checkout}
           </button>
         </div>
       </aside>
@@ -779,35 +565,6 @@ export default function CustomerKiosk() {
                 Add — <span className="tabular-nums">${(getBasePrice(customizingItem) + selectedToppings.length * 0.50).toFixed(2)}</span>
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Payment Modal */}
-      {paymentModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl flex flex-col items-center text-center">
-            <h2 className="text-2xl font-black text-slate-900 mb-2">Tap to Pay</h2>
-            <p className="text-slate-500 mb-6 font-medium">Total: ${(cartTotal * 1.0825).toFixed(2)}</p>
-            
-            <button
-              onClick={processPayment}
-              disabled={checkoutLoading}
-              className="group relative flex h-48 w-48 flex-col items-center justify-center gap-4 rounded-[2rem] bg-slate-50 border-2 border-dashed border-slate-300 transition-all hover:border-[#93c5fd] hover:bg-[#eff6ff] active:scale-95 disabled:pointer-events-none disabled:opacity-70"
-            >
-              <div className="text-6xl transition-transform group-hover:scale-110">{'\u{1F4B3}'}</div>
-              <span className="font-bold text-slate-600 group-hover:text-blue-600">
-                {checkoutLoading ? 'Processing...' : 'Tap Simulator'}
-              </span>
-            </button>
-            
-            <button 
-              onClick={() => setPaymentModalOpen(false)}
-              disabled={checkoutLoading}
-              className="mt-6 text-sm font-bold text-slate-400 hover:text-slate-600 transition"
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}
