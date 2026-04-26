@@ -1,13 +1,9 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
-import api, {
-  CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
-  CUSTOMER_SESSION_STORAGE_KEY,
-} from '../api';
-import { calculateOrderRewardPoints } from '../lib/rewards';
+import api, { CUSTOMER_SESSION_STORAGE_KEY } from '../api';
 
-const KIOSK_CASHIER_ID = 4;
+const KIOSK_CASHIER_ID = 3;
 
 const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -40,6 +36,11 @@ function defaultKioskCopy() {
     signOut: 'Sign out',
     endSession: 'End session',
     signedInAs: 'Signed in',
+    orderSuccessTitle: "You're all set!",
+    orderSuccessLead: 'Your order was placed successfully.',
+    orderSuccessThankYou: 'Thank you',
+    orderSuccessOrderLabel: 'Order number',
+    orderSuccessCta: 'Start new order',
   };
 }
 
@@ -47,7 +48,6 @@ export default function CustomerKiosk() {
   const navigate = useNavigate();
   const [sessionUser, setSessionUser] = useState(null);
   const [sessionLoading, setSessionLoading] = useState(true);
-  const [rewardsSummary, setRewardsSummary] = useState(null);
 
   const [menuItems, setMenuItems] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -56,70 +56,106 @@ export default function CustomerKiosk() {
   const [ice, setIce] = useState('Regular');
   const [selectedToppings, setSelectedToppings] = useState([]);
   const [cart, setCart] = useState([]);
+  const [orderSuccess, setOrderSuccess] = useState(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const orderSuccessCtaRef = useRef(null);
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
-  const [rewards, setRewards] = useState(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLog, setChatLog] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
   const chatEndRef = useRef(null);
+  const chatPanelRef = useRef(null);
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
   const googleSignInAvailable = Boolean(googleClientId);
+  const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
 
   useEffect(() => {
-    let ignore = false;
-
-    async function restoreSession() {
-      const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
-      if (!token) {
-        setSessionLoading(false);
-        return;
-      }
-
-      try {
-        const res = await api.get('/auth/me');
-        if (!ignore) {
-          setSessionUser(res.data.user);
-        }
-      } catch {
-        localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
-      } finally {
-        if (!ignore) {
-          setSessionLoading(false);
-        }
-      }
+    const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
+    if (!token) {
+      setSessionLoading(false);
+      return;
     }
-
-    restoreSession();
-    return () => {
-      ignore = true;
-    };
+    api
+      .get('/auth/me')
+      .then((res) => setSessionUser(res.data.user))
+      .catch(() => {
+        localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+        setSessionUser(null);
+      })
+      .finally(() => setSessionLoading(false));
   }, []);
 
   useEffect(() => {
     if (!sessionUser) return;
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
     api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
-
-    if (sessionUser.isGuest) {
-      setRewardsSummary(null);
-      return;
-    }
-
-    api.get('/rewards/me')
-      .then((res) => setRewardsSummary(res.data))
-      .catch(() => setRewardsSummary(null));
   }, [sessionUser]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatLog, isChatting]);
+
+  useEffect(() => {
+    if (!orderSuccess) return;
+    orderSuccessCtaRef.current?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') setOrderSuccess(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [orderSuccess]);
+
+  useEffect(() => {
+    if (!orderSuccess) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [orderSuccess]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'Escape' && chatOpen) setChatOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [chatOpen]);
+
+  const getChatFocusable = useCallback(() => {
+    if (!chatPanelRef.current) return [];
+    return Array.from(
+      chatPanelRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      )
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    const trap = (e) => {
+      if (e.key !== 'Tab') return;
+      const els = getChatFocusable();
+      if (els.length === 0) return;
+      const first = els[0];
+      const last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener('keydown', trap);
+    return () => window.removeEventListener('keydown', trap);
+  }, [chatOpen, getChatFocusable]);
 
   const categories = useMemo(() => {
     const cats = new Set(menuItems.map(item => item.category || 'Specialty'));
@@ -173,28 +209,26 @@ export default function CustomerKiosk() {
       localStorage.setItem(CUSTOMER_SESSION_STORAGE_KEY, res.data.token);
       setSessionUser(res.data.user);
     } catch (err) {
-      alert(err.response?.data?.error || 'Google sign-in failed.');
+      console.error(err);
+      alert('Sign-in failed. Please try again.');
     }
   };
 
   const handleLogout = () => {
     localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
-    sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
     setSessionUser(null);
-    setRewardsSummary(null);
     setCart([]);
     setMenuItems([]);
+    setOrderSuccess(null);
     setLanguage('en');
     setCopy(defaultKioskCopy());
-    setRewards(null);
   };
 
   const handleContinueAsGuest = () => {
     localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
-    sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
     setSessionUser({ isGuest: true, name: 'Guest' });
-    setRewardsSummary(null);
     setCart([]);
+    setOrderSuccess(null);
   };
 
   const handleTranslateToggle = async () => {
@@ -215,10 +249,15 @@ export default function CustomerKiosk() {
           'stepPay',
           'emptyCart',
           'assistantHint',
+          'orderSuccessTitle',
+          'orderSuccessLead',
+          'orderSuccessThankYou',
+          'orderSuccessOrderLabel',
+          'orderSuccessCta',
         ];
         const translated = await Promise.all(keys.map((k) => translateText(copy[k], 'es')));
         const nextCopy = keys.reduce((acc, k, i) => ({ ...acc, [k]: translated[i] }), {});
-        setCopy((c) => ({ ...c, ...nextCopy, translateBtn: 'Traducir al Inglés' }));
+        setCopy((c) => ({ ...c, ...nextCopy, translateBtn: 'Traducir al Ingles' }));
 
         const translatedMenu = await Promise.all(
           menuItems.map(async (item) => ({
@@ -251,7 +290,7 @@ export default function CustomerKiosk() {
     setIsChatting(true);
 
     try {
-      const menuContext = menuItems.map((i) => `${i.name}: ${i.description} ($${i.default_price})`).join('; ');
+      const menuContext = menuItems.map((i) => `${i.name}: ${i.description} ($${getBasePrice(i).toFixed(2)})`).join('; ');
       const res = await api.post('/chat', { message: userMsg, menuContext, language });
       setChatLog((prev) => [...prev, { sender: 'ai', text: res.data.reply }]);
     } catch {
@@ -261,9 +300,16 @@ export default function CustomerKiosk() {
   };
 
   const TOPPING_OPTIONS = [
-    { id: 'boba', name: 'Boba (+0.50)', price: 0.50 },
-    { id: 'lychee_jelly', name: 'Lychee Jelly (+0.50)', price: 0.50 },
-    { id: 'pudding', name: 'Pudding (+0.50)', price: 0.50 }
+    { id: 'pearls_boba', name: 'Pearls (Boba)', price: 0.50 },
+    { id: 'lychee_jelly', name: 'Lychee Jelly', price: 0.50 },
+    { id: 'crystal_boba', name: 'Crystal Boba', price: 0.50 },
+    { id: 'ice_cream', name: 'Ice Cream', price: 0.50 },
+    { id: 'coffee_jelly', name: 'Coffee Jelly', price: 0.50 },
+    { id: 'honey_jelly', name: 'Honey Jelly', price: 0.50 },
+    { id: 'mango_popping_boba', name: 'Mango Popping Boba', price: 0.50 },
+    { id: 'creama', name: 'Creama', price: 0.50 },
+    { id: 'pudding', name: 'Pudding', price: 0.50 },
+    { id: 'strawberry_popping_boba', name: 'Strawberry Popping Boba', price: 0.50 },
   ];
 
   const toggleTopping = (id) => {
@@ -283,7 +329,7 @@ export default function CustomerKiosk() {
     if (!customizingItem) return;
     const finalItem = {
       ...customizingItem,
-      custom_price: parseFloat(customizingItem.default_price) + (selectedToppings.length * 0.5),
+      custom_price: getBasePrice(customizingItem) + (selectedToppings.length * 0.5),
       customization: {
         sweetness,
         ice,
@@ -320,9 +366,8 @@ export default function CustomerKiosk() {
     setCart((prev) => prev.filter((line) => line.unique_id !== unique_id));
   };
 
-  const cartTotal = cart.reduce((sum, line) => sum + (line.custom_price ?? parseFloat(line.default_price)) * line.quantity, 0);
+  const cartTotal = cart.reduce((sum, line) => sum + (line.custom_price ?? getBasePrice(line)) * line.quantity, 0);
   const itemCount = cart.reduce((n, line) => n + line.quantity, 0);
-  const rewardPreview = calculateOrderRewardPoints(cart);
 
   const handleCheckout = () => {
     if (cart.length === 0) return;
@@ -331,22 +376,12 @@ export default function CustomerKiosk() {
 
   const processPayment = async () => {
     setCheckoutLoading(true);
-    const subtotal = cartTotal;
-    const tax = subtotal * 0.0825;
-    const total_amount = subtotal + tax;
-    const orderSnapshot = cart.map((i) => ({
-      lineId: i.unique_id,
-      name: i.name,
-      quantity: i.quantity,
-      customization: i.customization || null,
-      unitPrice: Number(i.custom_price ?? i.default_price),
-      lineTotal: Number(i.custom_price ?? i.default_price) * i.quantity,
-    }));
+    const total_amount = cartTotal * 1.0825;
     const formattedItems = cart.map((i) => ({
       menu_item_id: i.id,
       quantity: i.quantity,
       customization: i.customization || null,
-      price: i.custom_price ?? i.default_price,
+      price: i.custom_price ?? getBasePrice(i),
     }));
     try {
       const res = await api.post('/orders', {
@@ -355,47 +390,9 @@ export default function CustomerKiosk() {
         items: formattedItems,
         placed_via: 'customer_kiosk',
       });
-
-      const previousFreeBobaCount = Math.floor(Number(rewardsSummary?.pointsBalance || 0) / 5);
-      const confirmationOrder = {
-        orderId: res.data.id,
-        orderNumber: res.data.orderNumber,
-        items: orderSnapshot,
-        itemCount,
-        subtotal,
-        tax,
-        total: total_amount,
-        pointsEarned: res.data.pointsEarned || 0,
-        rewardsBalance: res.data.rewardsBalance,
-        freeBobaCount: res.data.freeBobaCount ?? 0,
-        pointsToNextFreeBoba: res.data.pointsToNextFreeBoba ?? 5,
-        justUnlockedFreeBoba:
-          (res.data.freeBobaCount ?? 0) > previousFreeBobaCount,
-        isGuest: !!sessionUser?.isGuest,
-      };
-
-      sessionStorage.setItem(
-        CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
-        JSON.stringify(confirmationOrder)
-      );
-
-      if (res.data.rewardsBalance != null && !sessionUser?.isGuest) {
-        setRewardsSummary({
-          customer: {
-            id: sessionUser.id,
-            name: sessionUser.name,
-            email: sessionUser.email,
-          },
-          pointsBalance: res.data.rewardsBalance,
-          freeBobaCount: res.data.freeBobaCount,
-          pointsToNextFreeBoba: res.data.pointsToNextFreeBoba,
-        });
-      }
+      setOrderSuccess({ orderId: res.data.id });
       setCart([]);
       setPaymentModalOpen(false);
-      navigate('/customer/confirmation', {
-        state: { order: confirmationOrder },
-      });
     } catch (err) {
       const status = err.response?.status;
       const target = language === 'es' ? 'es' : 'en';
@@ -416,19 +413,22 @@ export default function CustomerKiosk() {
     setCheckoutLoading(false);
   };
 
+  const cartOpen = cart.length > 0;
+  const mainPad = cartOpen ? 'pb-[340px] sm:pb-[300px]' : 'pb-36';
+
   const weatherLabel = useMemo(() => {
     if (!weather) return null;
     const temp = weather.temperature;
-    if (temp >= 80) return { emoji: '☀️', text: 'Hot outside — cool down with these!', bg: 'bg-amber-50 border-amber-200 text-amber-800' };
-    if (temp <= 55) return { emoji: '🌧️', text: 'Chilly today — warm up with these!', bg: 'bg-sky-50 border-sky-200 text-sky-800' };
-    return { emoji: '🌤️', text: 'Nice day — try something special!', bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
+    if (temp >= 80) return { emoji: '\u2600\uFE0F', text: 'Hot outside - cool down with these!', bg: 'bg-amber-50 border-amber-200 text-amber-800' };
+    if (temp <= 55) return { emoji: '\u{1F327}\uFE0F', text: 'Chilly today - warm up with these!', bg: 'bg-sky-50 border-sky-200 text-sky-800' };
+    return { emoji: '\u{1F324}\uFE0F', text: 'Nice day - try something special!', bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
   }, [weather]);
 
   if (sessionLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-violet-50 to-white font-[family-name:var(--font-ui)]">
         <p className="text-lg font-semibold text-violet-800" role="status">
-          Loading…
+          Loading...
         </p>
       </div>
     );
@@ -503,11 +503,6 @@ export default function CustomerKiosk() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {rewardsSummary && !sessionUser.isGuest && (
-              <div className="rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-amber-800">
-                {rewardsSummary.pointsBalance} pts
-              </div>
-            )}
             <div className="flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1.5">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-bold text-stone-700">
                 {(sessionUser.name || sessionUser.email || '?').slice(0, 1).toUpperCase()}
@@ -518,7 +513,7 @@ export default function CustomerKiosk() {
               {sessionUser.isGuest ? copy.endSession : copy.signOut}
             </button>
             <button type="button" onClick={handleTranslateToggle} disabled={isTranslating} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-50">
-              {isTranslating ? '…' : (language === 'es' ? '🇺🇸 English' : '🇲🇽 Español')}
+              {isTranslating ? '...' : (language === 'es' ? 'English' : 'Espanol')}
             </button>
           </div>
         </header>
@@ -529,7 +524,7 @@ export default function CustomerKiosk() {
             <div className="flex items-center gap-2 mb-3">
               <span className="text-xl">{weatherLabel.emoji}</span>
               <span className="font-bold text-sm">{weatherLabel.text}</span>
-              {weather && <span className="ml-auto text-xs font-medium opacity-70">{weather.temperature}°{weather.unit}</span>}
+              {weather && <span className="ml-auto text-xs font-medium opacity-70">{weather.temperature} deg {weather.unit}</span>}
             </div>
             <div className="flex gap-3 overflow-x-auto pb-1">
               {weatherRecommendations.map(item => (
@@ -538,10 +533,10 @@ export default function CustomerKiosk() {
                   onClick={() => handleDrinkClick(item)}
                   className="flex shrink-0 items-center gap-3 rounded-xl border border-white/60 bg-white/80 px-4 py-3 text-left transition hover:bg-white hover:shadow-sm active:scale-95"
                 >
-                  <span className="text-2xl">🧋</span>
+                  <span className="text-2xl" aria-hidden="true">{'\u{1F9CB}'}</span>
                   <div>
                     <p className="text-sm font-bold leading-tight text-stone-800">{item.name}</p>
-                    <p className="text-xs font-medium text-stone-500">${parseFloat(item.default_price).toFixed(2)}</p>
+                    <p className="text-xs font-medium text-stone-500">${getBasePrice(item).toFixed(2)}</p>
                   </div>
                 </button>
               ))}
@@ -576,7 +571,7 @@ export default function CustomerKiosk() {
                   {item.image_url ? (
                     <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-105" />
                   ) : (
-                    <span className="text-5xl opacity-30">🧋</span>
+                    <span className="text-5xl opacity-30" aria-hidden="true">{'\u{1F9CB}'}</span>
                   )}
                 </div>
                 <div className="p-4 w-full flex flex-col items-center flex-1">
@@ -584,7 +579,7 @@ export default function CustomerKiosk() {
                     {item.name}
                   </span>
                   <span className="mt-auto pt-2 text-base font-semibold text-stone-500">
-                    ${parseFloat(item.default_price).toFixed(2)}
+                    ${getBasePrice(item).toFixed(2)}
                   </span>
                 </div>
               </button>
@@ -601,24 +596,11 @@ export default function CustomerKiosk() {
             {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </span>
         </div>
-        {!sessionUser?.isGuest && rewards && (
-          <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Rewards</p>
-            <p className="mt-1 text-xl font-black text-emerald-900">
-              {Number(rewards.points_balance || 0)} pts
-            </p>
-            <p className="text-xs text-emerald-800">
-              {Number(rewards.points_to_next_reward || 0) === 0
-                ? 'Reward unlocked! Ask cashier to redeem.'
-                : `${Number(rewards.points_to_next_reward || 0)} pts to next reward`}
-            </p>
-          </div>
-        )}
 
         <div className="flex-1 overflow-y-auto px-5 py-4 relative">
           {cart.length === 0 ? (
             <div className="flex h-full items-center justify-center flex-col -mt-10 opacity-60">
-              <span className="text-5xl mb-4">🧋</span>
+              <span className="text-5xl mb-4" aria-hidden="true">{'\u{1F9CB}'}</span>
               <p className="font-medium text-stone-400 text-center text-sm">{copy.emptyCart}</p>
             </div>
           ) : (
@@ -627,7 +609,7 @@ export default function CustomerKiosk() {
                 <div key={item.unique_id} className="flex flex-col rounded-xl border border-stone-100 bg-stone-50 p-3">
                   <div className="flex justify-between items-start font-bold text-stone-800 text-[14px]">
                     <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
-                    <span>${(item.custom_price ?? parseFloat(item.default_price)).toFixed(2)}</span>
+                    <span>${(item.custom_price ?? getBasePrice(item)).toFixed(2)}</span>
                   </div>
                   {item.customization && (
                     <div className="text-xs text-stone-400 mt-1 leading-relaxed">
@@ -637,7 +619,7 @@ export default function CustomerKiosk() {
                   )}
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">−</button>
+                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">-</button>
                       <span className="font-bold tabular-nums text-stone-800">{item.quantity}</span>
                       <button onClick={() => addToCart(item)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">+</button>
                     </div>
@@ -650,19 +632,6 @@ export default function CustomerKiosk() {
         </div>
 
         <div className="px-5 py-5 shrink-0 border-t border-stone-100">
-          {rewardsSummary && !sessionUser.isGuest && (
-            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-              <div className="flex items-center justify-between font-semibold">
-                <span>Rewards balance</span>
-                <span>{rewardsSummary.pointsBalance} pts</span>
-              </div>
-              {cart.length > 0 && (
-                <p className="mt-1 text-xs font-medium text-amber-800">
-                  This order adds {rewardPreview} point{rewardPreview === 1 ? '' : 's'}. Every 5 points earns 1 free boba.
-                </p>
-              )}
-            </div>
-          )}
           <div className="flex justify-between text-sm font-medium text-stone-500 mb-1">
              <span>{language === 'es' ? 'Subtotal' : 'Subtotal'}</span>
              <span>${cartTotal.toFixed(2)}</span>
@@ -695,11 +664,12 @@ export default function CustomerKiosk() {
           className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border border-slate-200 text-2xl shadow-lg transition hover:scale-105 active:scale-95"
           aria-label="Open menu assistant"
         >
-          ✨
+          {'\u2728'}
         </button>
       </div>
 
       <div
+        ref={chatPanelRef}
         className={`fixed bottom-6 right-96 mr-6 z-50 w-[380px] origin-bottom-right transition ${
           chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
         }`}
@@ -707,7 +677,7 @@ export default function CustomerKiosk() {
         <div className="flex max-h-[500px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
           <div className="flex items-center justify-between bg-slate-900 px-5 py-4 text-white">
             <span className="font-bold">Boba assistant</span>
-            <button onClick={() => setChatOpen(false)} className="text-white/80 hover:text-white">✕</button>
+            <button onClick={() => setChatOpen(false)} className="text-white/80 hover:text-white">{'\u2715'}</button>
           </div>
           <div className="flex-1 min-h-[250px] max-h-72 overflow-y-auto space-y-3 bg-slate-50 p-4">
             {chatLog.length === 0 && <p className="text-center text-sm text-slate-500">{copy.assistantHint}</p>}
@@ -716,11 +686,11 @@ export default function CustomerKiosk() {
                 <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
               </div>
             ))}
-            {isChatting && <p className="text-sm italic text-slate-400">…</p>}
+            {isChatting && <p className="text-sm italic text-slate-400">...</p>}
             <div ref={chatEndRef} />
           </div>
           <form onSubmit={handleChatSubmit} className="flex items-center gap-2 border-t border-slate-200 bg-white p-3">
-            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Escribe tu pregunta…' : 'Type your question...'} />
+            <input type="text" value={chatInput} onChange={(e) => setChatInput(e.target.value)} className="min-h-[44px] flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 text-sm outline-none focus:ring-2 focus:ring-slate-300" placeholder={language === 'es' ? 'Habla o escribe tu pregunta...' : 'Speak or type...'} />
             <button type="submit" disabled={isChatting} className="min-h-[44px] rounded-xl bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {language === 'es' ? 'Enviar' : 'Send'}
             </button>
@@ -778,20 +748,17 @@ export default function CustomerKiosk() {
 
               <div>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
-                <div className="flex flex-col gap-2">
-                  {TOPPING_OPTIONS.map(topping => {
-                    const tName = topping.name.split(' ')[0];
+                <div className="grid grid-cols-2 gap-2">
+                  {TOPPING_OPTIONS.map((topping) => {
                     return (
-                      <label key={topping.id} className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${selectedToppings.includes(tName) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                        <span className="font-medium text-slate-800">{topping.name.replace(' (+0.50)', '')}</span>
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={selectedToppings.includes(tName)}
-                            onChange={() => toggleTopping(tName)}
-                            className="h-5 w-5 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
-                          />
-                        </div>
+                      <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition ${selectedToppings.includes(topping.name) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                        <span className="text-sm font-medium leading-tight text-slate-800">{topping.name}</span>
+                        <input
+                          type="checkbox"
+                          checked={selectedToppings.includes(topping.name)}
+                          onChange={() => toggleTopping(topping.name)}
+                          className="h-5 w-5 shrink-0 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
+                        />
                       </label>
                     );
                   })}
@@ -804,7 +771,7 @@ export default function CustomerKiosk() {
                 onClick={handleCustomizationConfirm}
                 className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
               >
-                Add — <span className="tabular-nums">${(parseFloat(customizingItem.default_price) + selectedToppings.length * 0.50).toFixed(2)}</span>
+                Add — <span className="tabular-nums">${(getBasePrice(customizingItem) + selectedToppings.length * 0.50).toFixed(2)}</span>
               </button>
             </div>
           </div>
@@ -823,7 +790,7 @@ export default function CustomerKiosk() {
               disabled={checkoutLoading}
               className="group relative flex h-48 w-48 flex-col items-center justify-center gap-4 rounded-[2rem] bg-slate-50 border-2 border-dashed border-slate-300 transition-all hover:border-[#93c5fd] hover:bg-[#eff6ff] active:scale-95 disabled:pointer-events-none disabled:opacity-70"
             >
-              <div className="text-6xl transition-transform group-hover:scale-110">💳</div>
+              <div className="text-6xl transition-transform group-hover:scale-110">{'\u{1F4B3}'}</div>
               <span className="font-bold text-slate-600 group-hover:text-blue-600">
                 {checkoutLoading ? 'Processing...' : 'Tap Simulator'}
               </span>
@@ -835,6 +802,32 @@ export default function CustomerKiosk() {
               className="mt-6 text-sm font-bold text-slate-400 hover:text-slate-600 transition"
             >
               Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Order Success Modal */}
+      {orderSuccess && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl text-center overflow-hidden relative">
+            <div className="absolute inset-x-0 top-0 h-2 bg-green-400"></div>
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-500 text-3xl mb-6 shadow-inner">
+              {'\u2713'}
+            </div>
+            <h2 className="text-3xl font-black text-slate-900 mb-2">{copy.orderSuccessTitle}</h2>
+            <p className="text-slate-500 font-medium mb-6">{copy.orderSuccessLead}</p>
+            
+            <div className="bg-slate-50 rounded-xl py-4 mb-6 border border-slate-100">
+               <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Order Number</p>
+               <p className="text-4xl font-black text-slate-800">#{orderSuccess.orderId}</p>
+            </div>
+            
+            <button
+              onClick={() => setOrderSuccess(null)}
+              className="w-full rounded-2xl bg-green-500 py-4 text-lg font-bold text-white shadow-sm transition hover:bg-green-600 active:scale-[0.98]"
+            >
+              Start New Order
             </button>
           </div>
         </div>

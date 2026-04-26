@@ -1,6 +1,15 @@
 -- Drops dependent tables safely to allow repeated execution
 DROP TABLE IF EXISTS login_points_daily CASCADE;
 DROP TABLE IF EXISTS points_ledger CASCADE;
+DROP TABLE IF EXISTS audit_log CASCADE;
+DROP TABLE IF EXISTS export_schedules CASCADE;
+DROP TABLE IF EXISTS purchase_order_items CASCADE;
+DROP TABLE IF EXISTS purchase_orders CASCADE;
+DROP TABLE IF EXISTS suppliers CASCADE;
+DROP TABLE IF EXISTS inventory_adjustments CASCADE;
+DROP TABLE IF EXISTS manager_financial_adjustments CASCADE;
+DROP TABLE IF EXISTS transaction_payments CASCADE;
+DROP TABLE IF EXISTS employee_shifts CASCADE;
 DROP TABLE IF EXISTS order_items CASCADE;
 DROP TABLE IF EXISTS orders CASCADE;
 DROP TABLE IF EXISTS customer_accounts CASCADE;
@@ -19,8 +28,23 @@ CREATE TABLE users (
     role VARCHAR(50) NOT NULL, -- 'manager', 'cashier', 'customer'
     email VARCHAR(255) UNIQUE NOT NULL,
     oauth_id VARCHAR(255),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    hired_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    terminated_at TIMESTAMP,
     points_balance INT NOT NULL DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE employee_shifts (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    shift_date DATE NOT NULL,
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    role VARCHAR(100),
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CHECK (end_time > start_time)
 );
 
 -- Customer kiosk OAuth identities (Google subject + profile cached from provider)
@@ -55,6 +79,7 @@ CREATE TABLE menu_items (
     description TEXT,
     category VARCHAR(100), -- 'Milk Tea', 'Fruit Tea', 'Slush'
     default_price DECIMAL(10,2) NOT NULL,
+    discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0 CHECK (discount_percent >= 0 AND discount_percent <= 100),
     image_url VARCHAR(255),
     is_available BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -105,6 +130,25 @@ CREATE TABLE manager_z_report_log (
     employee_signature VARCHAR(100)
 );
 
+CREATE TABLE transaction_payments (
+    id SERIAL PRIMARY KEY,
+    transaction_id INT NOT NULL REFERENCES "Transaction"(TransactionID) ON DELETE CASCADE,
+    payment_method VARCHAR(50) NOT NULL DEFAULT 'unspecified', -- cash, card, app, unspecified
+    amount DECIMAL(10,2) NOT NULL CHECK (amount >= 0),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE manager_financial_adjustments (
+    id SERIAL PRIMARY KEY,
+    transaction_id INT REFERENCES "Transaction"(TransactionID) ON DELETE SET NULL,
+    order_id INT,
+    adjustment_type VARCHAR(32) NOT NULL, -- void, refund, comp, discount, service_charge
+    amount DECIMAL(10,2) NOT NULL,
+    reason TEXT,
+    created_by VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 -- ----------------------------
 -- Orders (app transactional model)
 -- ----------------------------
@@ -147,4 +191,66 @@ CREATE TABLE login_points_daily (
     customer_account_id INT NOT NULL REFERENCES customer_accounts(id) ON DELETE CASCADE,
     award_date DATE NOT NULL,
     PRIMARY KEY (customer_account_id, award_date)
+);
+
+CREATE TABLE inventory_adjustments (
+    id SERIAL PRIMARY KEY,
+    inventory_id INT NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
+    previous_quantity DECIMAL(10,2) NOT NULL,
+    delta_quantity DECIMAL(10,2) NOT NULL,
+    new_quantity DECIMAL(10,2) NOT NULL,
+    reason VARCHAR(100) NOT NULL, -- waste, spill, spoilage, supplier_receive, correction
+    notes TEXT,
+    adjusted_by VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE suppliers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL UNIQUE,
+    contact_name VARCHAR(255),
+    contact_email VARCHAR(255),
+    contact_phone VARCHAR(64),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE purchase_orders (
+    id SERIAL PRIMARY KEY,
+    supplier_id INT REFERENCES suppliers(id) ON DELETE SET NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'pending', -- pending, ordered, received, cancelled
+    expected_date DATE,
+    notes TEXT,
+    created_by VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    received_at TIMESTAMP
+);
+
+CREATE TABLE purchase_order_items (
+    id SERIAL PRIMARY KEY,
+    purchase_order_id INT NOT NULL REFERENCES purchase_orders(id) ON DELETE CASCADE,
+    inventory_id INT NOT NULL REFERENCES inventory(id) ON DELETE CASCADE,
+    quantity DECIMAL(10,2) NOT NULL CHECK (quantity > 0)
+);
+
+CREATE TABLE audit_log (
+    id SERIAL PRIMARY KEY,
+    actor_email VARCHAR(255),
+    action_type VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(100) NOT NULL,
+    entity_id VARCHAR(100),
+    details JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE export_schedules (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    export_kind VARCHAR(32) NOT NULL, -- sales, inventory, labor
+    cadence_days INT NOT NULL CHECK (cadence_days > 0),
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    last_run_at TIMESTAMP,
+    next_run_at TIMESTAMP NOT NULL,
+    created_by VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

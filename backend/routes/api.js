@@ -39,6 +39,42 @@ function generateOrderNumber(length = 4) {
     return orderNumber;
 }
 
+async function requireManager(req, res) {
+    const managerEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase();
+    if (!managerEmail) {
+        res.status(401).json({ error: 'Manager identity is required.' });
+        return null;
+    }
+    const result = await db.query(
+        `SELECT id, email, role, is_active
+         FROM users
+         WHERE LOWER(email) = $1
+         LIMIT 1`,
+        [managerEmail]
+    );
+    const row = result.rows[0];
+    const allowedRoles = new Set(['manager', 'admin', 'supervisor']);
+    if (!row || !allowedRoles.has(String(row.role || '').toLowerCase()) || row.is_active !== true) {
+        res.status(403).json({ error: 'Manager-level access required.' });
+        return null;
+    }
+    return row;
+}
+
+function addDays(dateObj, days) {
+    const next = new Date(dateObj);
+    next.setDate(next.getDate() + Number(days || 0));
+    return next;
+}
+
+async function writeAudit(actorEmail, actionType, entityType, entityId, details = {}) {
+    await db.query(
+        `INSERT INTO audit_log (actor_email, action_type, entity_type, entity_id, details)
+         VALUES ($1, $2, $3, $4, $5::jsonb)`,
+        [actorEmail || null, actionType, entityType, entityId != null ? String(entityId) : null, JSON.stringify(details || {})]
+    );
+}
+
 function parseISODateParam(dateStr) {
     // Expects YYYY-MM-DD from the frontend.
     const [y, m, d] = String(dateStr).split('-').map((x) => Number(x));
@@ -54,17 +90,210 @@ function endExclusiveFromInclusiveDate(dateStr) {
     return endExclusive;
 }
 
-function calculateOrderPoints(totalAmount) {
-    const numeric = Number(totalAmount || 0);
-    if (!Number.isFinite(numeric) || numeric <= 0) return 0;
-    return Math.floor(numeric * REWARD_POINTS_PER_DOLLAR);
+function normalizeOrderItems(rawItems) {
+    const list = Array.isArray(rawItems) ? rawItems : [];
+    return list
+        .map((item) => {
+            const menuItemId = Number(item?.menu_item_id);
+            const quantity = Number(item?.quantity);
+            const price = Number(item?.price);
+            if (!Number.isFinite(menuItemId) || !Number.isFinite(quantity) || !Number.isFinite(price)) return null;
+            if (quantity <= 0 || price < 0) return null;
+            return {
+                menu_item_id: menuItemId,
+                quantity,
+                customization: item?.customization || null,
+                price,
+            };
+        })
+        .filter(Boolean);
 }
 
 // Get all menu items
 router.get('/menu', async (req, res) => {
     try {
-        const result = await db.query('SELECT * FROM menu_items WHERE is_available = TRUE');
+        const result = await db.query(`
+            SELECT
+                id,
+                name,
+                description,
+                category,
+                default_price,
+                discount_percent,
+                ROUND(default_price * (1 - discount_percent / 100.0), 2) AS effective_price,
+                image_url,
+                is_available,
+                created_at
+            FROM menu_items
+            WHERE is_available = TRUE
+            ORDER BY category, name
+        `);
         res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Manager menu catalog (includes unavailable items)
+router.get('/menu/all', async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT
+                id,
+                name,
+                description,
+                category,
+                default_price,
+                discount_percent,
+                ROUND(default_price * (1 - discount_percent / 100.0), 2) AS effective_price,
+                image_url,
+                is_available,
+                created_at
+            FROM menu_items
+            ORDER BY category, name
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/menu', async (req, res) => {
+    try {
+        const actorEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase() || null;
+        const {
+            name,
+            description,
+            category,
+            default_price,
+            discount_percent = 0,
+            image_url,
+            is_available = true,
+        } = req.body || {};
+
+        const cleanName = String(name || '').trim();
+        if (!cleanName) return res.status(400).json({ error: 'Name is required.' });
+
+        const price = Number(default_price);
+        if (!Number.isFinite(price) || price < 0) {
+            return res.status(400).json({ error: 'default_price must be a non-negative number.' });
+        }
+
+        const discount = Number(discount_percent || 0);
+        if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
+            return res.status(400).json({ error: 'discount_percent must be between 0 and 100.' });
+        }
+
+        const result = await db.query(
+            `
+            INSERT INTO menu_items
+            (name, description, category, default_price, discount_percent, image_url, is_available)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+            `,
+            [
+                cleanName,
+                description ? String(description) : null,
+                category ? String(category) : null,
+                price,
+                discount,
+                image_url ? String(image_url) : null,
+                Boolean(is_available),
+            ]
+        );
+
+        await writeAudit(actorEmail, 'menu.create', 'menu_item', result.rows[0].id, { name: cleanName });
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/menu/:id', async (req, res) => {
+    try {
+        const actorEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase() || null;
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid menu item id.' });
+
+        const existingRes = await db.query('SELECT * FROM menu_items WHERE id = $1', [id]);
+        if (existingRes.rows.length === 0) return res.status(404).json({ error: 'Menu item not found.' });
+        const existing = existingRes.rows[0];
+
+        const name = req.body?.name !== undefined ? String(req.body.name).trim() : existing.name;
+        if (!name) return res.status(400).json({ error: 'Name cannot be empty.' });
+
+        const defaultPriceRaw = req.body?.default_price !== undefined ? req.body.default_price : existing.default_price;
+        const defaultPrice = Number(defaultPriceRaw);
+        if (!Number.isFinite(defaultPrice) || defaultPrice < 0) {
+            return res.status(400).json({ error: 'default_price must be a non-negative number.' });
+        }
+
+        const discountRaw = req.body?.discount_percent !== undefined ? req.body.discount_percent : existing.discount_percent;
+        const discountPercent = Number(discountRaw || 0);
+        if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+            return res.status(400).json({ error: 'discount_percent must be between 0 and 100.' });
+        }
+
+        const result = await db.query(
+            `
+            UPDATE menu_items
+            SET
+                name = $1,
+                description = $2,
+                category = $3,
+                default_price = $4,
+                discount_percent = $5,
+                image_url = $6,
+                is_available = $7
+            WHERE id = $8
+            RETURNING *
+            `,
+            [
+                name,
+                req.body?.description !== undefined ? (req.body.description ? String(req.body.description) : null) : existing.description,
+                req.body?.category !== undefined ? (req.body.category ? String(req.body.category) : null) : existing.category,
+                defaultPrice,
+                discountPercent,
+                req.body?.image_url !== undefined ? (req.body.image_url ? String(req.body.image_url) : null) : existing.image_url,
+                req.body?.is_available !== undefined ? Boolean(req.body.is_available) : existing.is_available,
+                id,
+            ]
+        );
+
+        await writeAudit(actorEmail, 'menu.update', 'menu_item', id, { name });
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Remove a menu item from customer-facing menus (soft delete).
+// Keeps historical order/report integrity by preserving the row.
+router.delete('/menu/:id', async (req, res) => {
+    try {
+        const actorEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase() || null;
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid menu item id.' });
+
+        const result = await db.query(
+            `
+            UPDATE menu_items
+            SET is_available = FALSE
+            WHERE id = $1
+            RETURNING id, name, is_available
+            `,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Menu item not found.' });
+        }
+
+        res.json({
+            message: 'Menu item removed from active menu.',
+            item: result.rows[0],
+        });
+        await writeAudit(actorEmail, 'menu.remove', 'menu_item', id, {});
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -84,8 +313,185 @@ router.get('/inventory', async (req, res) => {
 // Get users/employees
 router.get('/employees', async (req, res) => {
     try {
-        const result = await db.query('SELECT * FROM users');
+        const includeInactive = String(req.query.include_inactive || '') === '1';
+        const result = await db.query(
+            `
+            SELECT
+                id, name, role, email, is_active, hired_at, terminated_at, created_at
+            FROM users
+            WHERE role <> 'customer'
+              AND ($1::boolean = TRUE OR is_active = TRUE)
+            ORDER BY is_active DESC, role, name
+            `,
+            [includeInactive]
+        );
         res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/employees', async (req, res) => {
+    try {
+        const actorEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase() || null;
+        const { name, role, email } = req.body || {};
+        const cleanName = String(name || '').trim();
+        const cleanRole = String(role || '').trim().toLowerCase();
+        const cleanEmail = String(email || '').trim().toLowerCase();
+
+        if (!cleanName) return res.status(400).json({ error: 'Employee name is required.' });
+        if (!cleanRole) return res.status(400).json({ error: 'Employee role is required.' });
+        if (cleanRole === 'customer') return res.status(400).json({ error: 'Role cannot be customer for employee records.' });
+        if (!cleanEmail) return res.status(400).json({ error: 'Employee email is required.' });
+
+        const result = await db.query(
+            `
+            INSERT INTO users (name, role, email, is_active, hired_at, terminated_at)
+            VALUES ($1, $2, $3, TRUE, NOW(), NULL)
+            RETURNING id, name, role, email, is_active, hired_at, terminated_at, created_at
+            `,
+            [cleanName, cleanRole, cleanEmail]
+        );
+        await writeAudit(actorEmail, 'employee.create', 'employee', result.rows[0].id, { role: cleanRole });
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        if (String(err.message || '').includes('duplicate key')) {
+            return res.status(409).json({ error: 'An employee with this email already exists.' });
+        }
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.patch('/employees/:id/deactivate', async (req, res) => {
+    try {
+        const actorEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase() || null;
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid employee id.' });
+        const result = await db.query(
+            `
+            UPDATE users
+            SET is_active = FALSE, terminated_at = NOW()
+            WHERE id = $1
+            RETURNING id, name, role, email, is_active, hired_at, terminated_at
+            `,
+            [id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Employee not found.' });
+        await writeAudit(actorEmail, 'employee.deactivate', 'employee', id, {});
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.patch('/employees/:id/reactivate', async (req, res) => {
+    try {
+        const actorEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase() || null;
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid employee id.' });
+        const result = await db.query(
+            `
+            UPDATE users
+            SET is_active = TRUE, terminated_at = NULL
+            WHERE id = $1
+            RETURNING id, name, role, email, is_active, hired_at, terminated_at
+            `,
+            [id]
+        );
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Employee not found.' });
+        await writeAudit(actorEmail, 'employee.reactivate', 'employee', id, {});
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/shifts', async (req, res) => {
+    try {
+        const { from, to } = req.query;
+        let sql = `
+            SELECT
+                s.id,
+                s.user_id,
+                u.name AS employee_name,
+                u.role AS employee_role,
+                u.is_active,
+                s.shift_date,
+                s.start_time,
+                s.end_time,
+                s.role,
+                s.notes
+            FROM employee_shifts s
+            JOIN users u ON u.id = s.user_id
+            WHERE 1=1
+        `;
+        const params = [];
+        if (from) {
+            params.push(from);
+            sql += ` AND s.shift_date >= $${params.length}`;
+        }
+        if (to) {
+            params.push(to);
+            sql += ` AND s.shift_date <= $${params.length}`;
+        }
+        sql += ' ORDER BY s.shift_date, s.start_time, u.name';
+
+        const result = await db.query(sql, params);
+        res.json({ shifts: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/shifts', async (req, res) => {
+    try {
+        const actorEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase() || null;
+        const { user_id, shift_date, start_time, end_time, role, notes } = req.body || {};
+        const userId = Number(user_id);
+        if (!Number.isFinite(userId)) return res.status(400).json({ error: 'Valid user_id is required.' });
+        if (!shift_date || !start_time || !end_time) {
+            return res.status(400).json({ error: 'shift_date, start_time, and end_time are required.' });
+        }
+
+        const overlap = await db.query(
+            `
+            SELECT id
+            FROM employee_shifts
+            WHERE user_id = $1
+              AND shift_date = $2
+              AND NOT ($4::time <= start_time OR $3::time >= end_time)
+            LIMIT 1
+            `,
+            [userId, shift_date, start_time, end_time]
+        );
+        if (overlap.rows.length > 0) {
+            return res.status(409).json({ error: 'Shift overlaps an existing shift for this employee.' });
+        }
+
+        const result = await db.query(
+            `
+            INSERT INTO employee_shifts (user_id, shift_date, start_time, end_time, role, notes)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            `,
+            [userId, shift_date, start_time, end_time, role ? String(role) : null, notes ? String(notes) : null]
+        );
+        await writeAudit(actorEmail, 'shift.create', 'shift', result.rows[0].id, { userId, shift_date });
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.delete('/shifts/:id', async (req, res) => {
+    try {
+        const actorEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase() || null;
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid shift id.' });
+        const result = await db.query('DELETE FROM employee_shifts WHERE id = $1 RETURNING id', [id]);
+        if (result.rows.length === 0) return res.status(404).json({ error: 'Shift not found.' });
+        await writeAudit(actorEmail, 'shift.delete', 'shift', id, {});
+        res.json({ message: 'Shift removed.', id: result.rows[0].id });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -93,9 +499,20 @@ router.get('/employees', async (req, res) => {
 
 // Create an order
 router.post('/orders', async (req, res) => {
-    const { cashier_id, total_amount, items, placed_via } = req.body;
+    const { cashier_id, items, placed_via, payment_method } = req.body;
     let customerAccountId = null;
-    let pointsEarned = 0;
+    const inferredMethod = placed_via === 'customer_kiosk' ? 'card' : 'cash';
+    const paymentMethod = String(payment_method || inferredMethod || 'unspecified').trim().toLowerCase();
+    const normalizedItems = normalizeOrderItems(items);
+    if (normalizedItems.length === 0) {
+        return res.status(400).json({ error: 'Order must include at least one valid item.' });
+    }
+
+    // Canonical source of truth for totals: derive from line items server-side.
+    const computedTotal = normalizedItems.reduce(
+        (sum, item) => sum + item.quantity * item.price,
+        0
+    );
 
     if (placed_via === 'customer_kiosk') {
         customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
@@ -109,13 +526,12 @@ router.post('/orders', async (req, res) => {
 
         const pointsEarned = customerAccountId ? calculateOrderPoints(total_amount) : 0;
         const orderResult = await db.query(
-            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status, points_earned) VALUES ($1, $2, $3, 'completed', $4) RETURNING id",
-            [cashier_id, customerAccountId, total_amount, pointsEarned]
+            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status) VALUES ($1, $2, $3, 'completed') RETURNING id",
+            [cashier_id, customerAccountId, computedTotal]
         );
         const orderId = orderResult.rows[0].id;
 
-        // items should be an array of: { menu_item_id, quantity, customization, price }
-        for (let item of items || []) {
+        for (const item of normalizedItems) {
             await db.query(
                 'INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time) VALUES ($1, $2, $3, $4, $5)',
                 [orderId, item.menu_item_id, item.quantity, item.customization || null, item.price]
@@ -138,10 +554,14 @@ router.post('/orders', async (req, res) => {
 
         await db.query(
             'INSERT INTO "Transaction" (TransactionID, TransactionTimestamp, TotalAmount) VALUES ($1, NOW(), $2)',
-            [transactionId, total_amount]
+            [transactionId, computedTotal]
+        );
+        await db.query(
+            'INSERT INTO transaction_payments (transaction_id, payment_method, amount) VALUES ($1, $2, $3)',
+            [transactionId, paymentMethod || 'unspecified', computedTotal]
         );
 
-        for (let item of items || []) {
+        for (const item of normalizedItems) {
             await db.query(
                 'INSERT INTO TransactionItem (TransactionItemID, TransactionID, ProductID, Quantity, PriceAtPurchase) VALUES ($1, $2, $3, $4, $5)',
                 [nextTransactionItemId, transactionId, item.menu_item_id, item.quantity, item.price]
@@ -209,15 +629,11 @@ router.post('/orders', async (req, res) => {
         }
 
         await db.query('COMMIT');
-        const rewardsSummary = buildRewardsSummary(rewardsBalance);
         res.status(201).json({
             id: orderId,
-            orderNumber: generateOrderNumber(),
+            transaction_id: transactionId,
+            total_amount: Number(computedTotal.toFixed(2)),
             message: 'Order created successfully',
-            pointsEarned,
-            rewardsBalance: rewardsSummary.pointsBalance,
-            freeBobaCount: rewardsSummary.freeBobaCount,
-            pointsToNextFreeBoba: rewardsSummary.pointsToNextFreeBoba,
         });
     } catch (err) {
         await db.query('ROLLBACK');
@@ -225,34 +641,61 @@ router.post('/orders', async (req, res) => {
     }
 });
 
-router.get('/rewards', async (req, res) => {
+// Manager order history: live orders + seeded orders from orders/order_items.
+router.get('/orders/history', async (req, res) => {
     try {
-        const customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
-        if (customerAccountId == null) {
-            return res.status(401).json({ error: 'Customer login required' });
-        }
+        const rawLimit = Number(req.query.limit);
+        const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 500) : 100;
 
-        const result = await db.query(
-            `SELECT
-                COALESCE(SUM(points_earned), 0) AS points_balance,
-                COUNT(*) FILTER (WHERE status = 'completed') AS completed_orders
-             FROM orders
-             WHERE customer_account_id = $1`,
-            [customerAccountId]
-        );
+        const sql = `
+            SELECT
+                o.id,
+                o.created_at,
+                o.status,
+                o.total_amount,
+                o.transaction_id,
+                o.cashier_id,
+                u.name AS cashier_name,
+                c.email AS customer_email,
+                COALESCE(SUM(oi.quantity), 0) AS item_count,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'menu_item_id', oi.menu_item_id,
+                            'item_name', COALESCE(mi.name, CONCAT('Item #', oi.menu_item_id)),
+                            'quantity', oi.quantity,
+                            'price_at_time', oi.price_at_time,
+                            'customization', oi.customization
+                        )
+                        ORDER BY oi.id
+                    ) FILTER (WHERE oi.id IS NOT NULL),
+                    '[]'::json
+                ) AS items
+            FROM orders o
+            LEFT JOIN users u ON u.id = o.cashier_id
+            LEFT JOIN customer_accounts c ON c.id = o.customer_account_id
+            LEFT JOIN order_items oi ON oi.order_id = o.id
+            LEFT JOIN menu_items mi ON mi.id = oi.menu_item_id
+            GROUP BY o.id, u.name, c.email
+            ORDER BY o.created_at DESC, o.id DESC
+            LIMIT $1
+        `;
 
-        const pointsBalance = Number(result.rows[0]?.points_balance || 0);
-        const completedOrders = Number(result.rows[0]?.completed_orders || 0);
-        const rewardThreshold = 50;
-        const remainder = pointsBalance % rewardThreshold;
-        const pointsToNextReward = remainder === 0 ? 0 : rewardThreshold - remainder;
+        const result = await db.query(sql, [limit]);
+        const orders = (result.rows || []).map((row) => ({
+            id: row.id,
+            created_at: row.created_at,
+            status: row.status,
+            total_amount: Number(row.total_amount || 0),
+            transaction_id: row.transaction_id,
+            cashier_id: row.cashier_id,
+            cashier_name: row.cashier_name,
+            customer_email: row.customer_email,
+            item_count: Number(row.item_count || 0),
+            items: Array.isArray(row.items) ? row.items : [],
+        }));
 
-        res.json({
-            points_balance: pointsBalance,
-            completed_orders: completedOrders,
-            reward_threshold: rewardThreshold,
-            points_to_next_reward: pointsToNextReward,
-        });
+        res.json({ orders });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -376,23 +819,598 @@ router.get('/rewards/me', async (req, res) => {
 });
 
 // ----------------------------
+// Operations: inventory, suppliers, purchase orders
+// ----------------------------
+
+router.get('/inventory/alerts', async (req, res) => {
+    try {
+        const rows = await db.query(
+            `
+            SELECT
+                id,
+                name,
+                category,
+                quantity,
+                restock_threshold,
+                CASE
+                    WHEN quantity <= restock_threshold THEN 'now'
+                    WHEN quantity <= restock_threshold * 1.25 THEN 'soon'
+                    ELSE 'ok'
+                END AS alert_level,
+                GREATEST(0, restock_threshold - quantity) AS needed_to_threshold
+            FROM inventory
+            ORDER BY
+                CASE
+                    WHEN quantity <= restock_threshold THEN 0
+                    WHEN quantity <= restock_threshold * 1.25 THEN 1
+                    ELSE 2
+                END,
+                name
+            `
+        );
+        const now = rows.rows.filter((r) => r.alert_level === 'now');
+        const soon = rows.rows.filter((r) => r.alert_level === 'soon');
+        res.json({ now, soon, all: rows.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/inventory/adjustments', async (req, res) => {
+    try {
+        const result = await db.query(
+            `
+            SELECT
+                ia.id,
+                ia.inventory_id,
+                inv.name AS inventory_name,
+                ia.previous_quantity,
+                ia.delta_quantity,
+                ia.new_quantity,
+                ia.reason,
+                ia.notes,
+                ia.adjusted_by,
+                ia.created_at
+            FROM inventory_adjustments ia
+            JOIN inventory inv ON inv.id = ia.inventory_id
+            ORDER BY ia.created_at DESC, ia.id DESC
+            LIMIT 250
+            `
+        );
+        res.json({ adjustments: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/inventory/adjustments', async (req, res) => {
+    try {
+        const manager = await requireManager(req, res);
+        if (!manager) return;
+        const { inventory_id, delta_quantity, reason, notes } = req.body || {};
+        const inventoryId = Number(inventory_id);
+        const delta = Number(delta_quantity);
+        if (!Number.isFinite(inventoryId) || !Number.isFinite(delta)) {
+            return res.status(400).json({ error: 'inventory_id and delta_quantity are required numbers.' });
+        }
+        const cleanReason = String(reason || '').trim() || 'correction';
+
+        await db.query('BEGIN');
+        const invRes = await db.query('SELECT id, quantity FROM inventory WHERE id = $1 FOR UPDATE', [inventoryId]);
+        if (invRes.rows.length === 0) {
+            await db.query('ROLLBACK');
+            return res.status(404).json({ error: 'Inventory item not found.' });
+        }
+        const previousQty = Number(invRes.rows[0].quantity || 0);
+        const newQty = Math.max(0, previousQty + delta);
+
+        await db.query('UPDATE inventory SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [newQty, inventoryId]);
+        const logRes = await db.query(
+            `
+            INSERT INTO inventory_adjustments
+            (inventory_id, previous_quantity, delta_quantity, new_quantity, reason, notes, adjusted_by)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+            `,
+            [inventoryId, previousQty, delta, newQty, cleanReason, notes ? String(notes) : null, manager.email]
+        );
+        await writeAudit(manager.email, 'inventory.adjust', 'inventory', inventoryId, { previousQty, delta, newQty, reason: cleanReason });
+        await db.query('COMMIT');
+        res.status(201).json(logRes.rows[0]);
+    } catch (err) {
+        try { await db.query('ROLLBACK'); } catch {}
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/suppliers', async (req, res) => {
+    try {
+        const result = await db.query('SELECT * FROM suppliers ORDER BY is_active DESC, name');
+        res.json({ suppliers: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/suppliers', async (req, res) => {
+    try {
+        const manager = await requireManager(req, res);
+        if (!manager) return;
+        const { name, contact_name, contact_email, contact_phone } = req.body || {};
+        const cleanName = String(name || '').trim();
+        if (!cleanName) return res.status(400).json({ error: 'Supplier name is required.' });
+        const result = await db.query(
+            `
+            INSERT INTO suppliers (name, contact_name, contact_email, contact_phone, is_active)
+            VALUES ($1, $2, $3, $4, TRUE)
+            RETURNING *
+            `,
+            [
+                cleanName,
+                contact_name ? String(contact_name) : null,
+                contact_email ? String(contact_email) : null,
+                contact_phone ? String(contact_phone) : null,
+            ]
+        );
+        await writeAudit(manager.email, 'supplier.create', 'supplier', result.rows[0].id, { name: cleanName });
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        if (String(err.message || '').includes('duplicate key')) {
+            return res.status(409).json({ error: 'Supplier name already exists.' });
+        }
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/purchase-orders', async (req, res) => {
+    try {
+        const result = await db.query(
+            `
+            SELECT
+                po.id,
+                po.status,
+                po.expected_date,
+                po.notes,
+                po.created_by,
+                po.created_at,
+                po.received_at,
+                po.supplier_id,
+                s.name AS supplier_name,
+                COALESCE(
+                    json_agg(
+                        json_build_object(
+                            'id', poi.id,
+                            'inventory_id', poi.inventory_id,
+                            'inventory_name', inv.name,
+                            'quantity', poi.quantity
+                        )
+                        ORDER BY poi.id
+                    ) FILTER (WHERE poi.id IS NOT NULL),
+                    '[]'::json
+                ) AS items
+            FROM purchase_orders po
+            LEFT JOIN suppliers s ON s.id = po.supplier_id
+            LEFT JOIN purchase_order_items poi ON poi.purchase_order_id = po.id
+            LEFT JOIN inventory inv ON inv.id = poi.inventory_id
+            GROUP BY po.id, s.name
+            ORDER BY po.created_at DESC, po.id DESC
+            LIMIT 200
+            `
+        );
+        res.json({ purchaseOrders: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/purchase-orders', async (req, res) => {
+    try {
+        const manager = await requireManager(req, res);
+        if (!manager) return;
+        const { supplier_id, expected_date, notes, items } = req.body || {};
+        const supplierId = Number(supplier_id);
+        const cleanItems = Array.isArray(items) ? items : [];
+        if (!Number.isFinite(supplierId)) return res.status(400).json({ error: 'supplier_id is required.' });
+        if (cleanItems.length === 0) return res.status(400).json({ error: 'At least one purchase-order item is required.' });
+
+        await db.query('BEGIN');
+        const poRes = await db.query(
+            `
+            INSERT INTO purchase_orders (supplier_id, status, expected_date, notes, created_by)
+            VALUES ($1, 'ordered', $2, $3, $4)
+            RETURNING *
+            `,
+            [supplierId, expected_date || null, notes ? String(notes) : null, manager.email]
+        );
+        const po = poRes.rows[0];
+        for (const raw of cleanItems) {
+            const inventoryId = Number(raw?.inventory_id);
+            const qty = Number(raw?.quantity);
+            if (!Number.isFinite(inventoryId) || !Number.isFinite(qty) || qty <= 0) continue;
+            await db.query(
+                'INSERT INTO purchase_order_items (purchase_order_id, inventory_id, quantity) VALUES ($1, $2, $3)',
+                [po.id, inventoryId, qty]
+            );
+        }
+        await writeAudit(manager.email, 'purchase_order.create', 'purchase_order', po.id, { supplierId });
+        await db.query('COMMIT');
+        res.status(201).json(po);
+    } catch (err) {
+        try { await db.query('ROLLBACK'); } catch {}
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/purchase-orders/:id/receive', async (req, res) => {
+    try {
+        const manager = await requireManager(req, res);
+        if (!manager) return;
+        const poId = Number(req.params.id);
+        if (!Number.isFinite(poId)) return res.status(400).json({ error: 'Invalid purchase order id.' });
+
+        await db.query('BEGIN');
+        const poRes = await db.query('SELECT * FROM purchase_orders WHERE id = $1 FOR UPDATE', [poId]);
+        if (poRes.rows.length === 0) {
+            await db.query('ROLLBACK');
+            return res.status(404).json({ error: 'Purchase order not found.' });
+        }
+        const po = poRes.rows[0];
+        if (po.status === 'received') {
+            await db.query('ROLLBACK');
+            return res.status(400).json({ error: 'Purchase order already received.' });
+        }
+        const itemsRes = await db.query('SELECT * FROM purchase_order_items WHERE purchase_order_id = $1', [poId]);
+        for (const item of itemsRes.rows) {
+            const invRes = await db.query('SELECT id, quantity FROM inventory WHERE id = $1 FOR UPDATE', [item.inventory_id]);
+            if (invRes.rows.length === 0) continue;
+            const previousQty = Number(invRes.rows[0].quantity || 0);
+            const delta = Number(item.quantity || 0);
+            const newQty = previousQty + delta;
+            await db.query('UPDATE inventory SET quantity = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [newQty, item.inventory_id]);
+            await db.query(
+                `
+                INSERT INTO inventory_adjustments
+                (inventory_id, previous_quantity, delta_quantity, new_quantity, reason, notes, adjusted_by)
+                VALUES ($1, $2, $3, $4, 'supplier_receive', $5, $6)
+                `,
+                [item.inventory_id, previousQty, delta, newQty, `PO #${poId} received`, manager.email]
+            );
+        }
+        await db.query(
+            `UPDATE purchase_orders
+             SET status = 'received', received_at = CURRENT_TIMESTAMP
+             WHERE id = $1`,
+            [poId]
+        );
+        await writeAudit(manager.email, 'purchase_order.receive', 'purchase_order', poId, {});
+        await db.query('COMMIT');
+        res.json({ id: poId, message: 'Purchase order received and inventory updated.' });
+    } catch (err) {
+        try { await db.query('ROLLBACK'); } catch {}
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ----------------------------
+// Finance controls / insights / audit / export
+// ----------------------------
+
+router.post('/finance/adjustments', async (req, res) => {
+    try {
+        const manager = await requireManager(req, res);
+        if (!manager) return;
+        const { order_id, transaction_id, adjustment_type, amount, reason } = req.body || {};
+        const cleanType = String(adjustment_type || '').trim().toLowerCase();
+        const allowed = new Set(['void', 'refund', 'comp', 'discount', 'service_charge']);
+        if (!allowed.has(cleanType)) return res.status(400).json({ error: 'Invalid adjustment_type.' });
+        const amt = Number(amount);
+        if (!Number.isFinite(amt) || amt < 0) return res.status(400).json({ error: 'amount must be a non-negative number.' });
+
+        const result = await db.query(
+            `
+            INSERT INTO manager_financial_adjustments
+            (transaction_id, order_id, adjustment_type, amount, reason, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *
+            `,
+            [
+                transaction_id != null ? Number(transaction_id) : null,
+                order_id != null ? Number(order_id) : null,
+                cleanType,
+                amt,
+                reason ? String(reason) : null,
+                manager.email,
+            ]
+        );
+        await writeAudit(manager.email, 'finance.adjust', 'finance_adjustment', result.rows[0].id, { type: cleanType, amount: amt });
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/finance/adjustments', async (req, res) => {
+    try {
+        const result = await db.query(
+            `
+            SELECT id, transaction_id, order_id, adjustment_type, amount, reason, created_by, created_at
+            FROM manager_financial_adjustments
+            ORDER BY created_at DESC, id DESC
+            LIMIT 300
+            `
+        );
+        res.json({ adjustments: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/insights/peak-hours', async (req, res) => {
+    try {
+        const days = Number(req.query.days);
+        const lookbackDays = Number.isFinite(days) ? Math.min(Math.max(days, 1), 120) : 30;
+        const sql = `
+            SELECT
+                EXTRACT(DOW FROM TransactionTimestamp) AS day_of_week,
+                EXTRACT(HOUR FROM TransactionTimestamp) AS hour_of_day,
+                COUNT(*) AS tx_count,
+                COALESCE(SUM(TotalAmount), 0) AS revenue
+            FROM "Transaction"
+            WHERE TransactionTimestamp >= NOW() - ($1::text || ' days')::interval
+            GROUP BY day_of_week, hour_of_day
+            ORDER BY tx_count DESC, revenue DESC
+        `;
+        const result = await db.query(sql, [lookbackDays]);
+        const points = (result.rows || []).map((r) => ({
+            dayOfWeek: Number(r.day_of_week),
+            hourOfDay: Number(r.hour_of_day),
+            txCount: Number(r.tx_count || 0),
+            revenue: Number(r.revenue || 0),
+        }));
+        const top = points.slice(0, 5);
+        const suggestion = top.length > 0
+            ? `Peak period is around day ${top[0].dayOfWeek} hour ${String(top[0].hourOfDay).padStart(2, '0')}:00. Consider one extra cashier during top 2 windows.`
+            : 'Not enough data yet for staffing suggestions.';
+        res.json({ lookbackDays, points, top, suggestion });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/insights/inventory-forecast', async (req, res) => {
+    try {
+        const days = Number(req.query.days);
+        const lookbackDays = Number.isFinite(days) ? Math.min(Math.max(days, 3), 120) : 30;
+        const sql = `
+            WITH usage AS (
+                SELECT
+                    pi.inventoryid AS inventory_id,
+                    COALESCE(SUM(ti.quantity), 0)::numeric AS total_used_units
+                FROM productinventory pi
+                LEFT JOIN transactionitem ti ON ti.productid = pi.productid
+                LEFT JOIN "Transaction" t
+                    ON t.transactionid = ti.transactionid
+                   AND t.transactiontimestamp >= NOW() - ($1::text || ' days')::interval
+                GROUP BY pi.inventoryid
+            )
+            SELECT
+                inv.id,
+                inv.name,
+                inv.category,
+                inv.quantity,
+                inv.restock_threshold,
+                COALESCE(u.total_used_units, 0) AS total_used_units
+            FROM inventory inv
+            LEFT JOIN usage u ON u.inventory_id = inv.id
+            ORDER BY inv.name
+        `;
+        const result = await db.query(sql, [lookbackDays]);
+        const points = (result.rows || []).map((r) => {
+            const qty = Number(r.quantity || 0);
+            const threshold = Number(r.restock_threshold || 0);
+            const totalUsed = Number(r.total_used_units || 0);
+            const avgDailyUse = totalUsed / lookbackDays;
+            const daysUntilRestock = avgDailyUse > 0 ? Math.max(0, (qty - threshold) / avgDailyUse) : null;
+            const suggestedReorderQty = Math.max(0, threshold * 2 - qty);
+            return {
+                inventoryId: r.id,
+                inventoryName: r.name,
+                category: r.category,
+                quantity: qty,
+                restockThreshold: threshold,
+                totalUsedUnits: Number(totalUsed.toFixed(2)),
+                avgDailyUse: Number(avgDailyUse.toFixed(2)),
+                daysUntilRestock: daysUntilRestock == null ? null : Number(daysUntilRestock.toFixed(1)),
+                suggestedReorderQty: Number(suggestedReorderQty.toFixed(2)),
+            };
+        });
+        const atRisk = points
+            .filter((p) => p.daysUntilRestock != null && p.daysUntilRestock <= 14)
+            .sort((a, b) => Number(a.daysUntilRestock || 9999) - Number(b.daysUntilRestock || 9999))
+            .slice(0, 12);
+        res.json({ lookbackDays, points, atRisk });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/audit-log', async (req, res) => {
+    try {
+        const result = await db.query(
+            `
+            SELECT id, actor_email, action_type, entity_type, entity_id, details, created_at
+            FROM audit_log
+            ORDER BY created_at DESC, id DESC
+            LIMIT 500
+            `
+        );
+        res.json({ logs: result.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/export/:kind', async (req, res) => {
+    try {
+        const kind = String(req.params.kind || '').toLowerCase();
+        let rows = [];
+        if (kind === 'sales') {
+            const result = await db.query(
+                `
+                SELECT
+                    t.transactionid,
+                    t.transactiontimestamp,
+                    t.totalamount,
+                    COALESCE(tp.payment_method, 'unspecified') AS payment_method
+                FROM "Transaction" t
+                LEFT JOIN transaction_payments tp ON tp.transaction_id = t.transactionid
+                ORDER BY t.transactiontimestamp DESC, t.transactionid DESC
+                LIMIT 2000
+                `
+            );
+            rows = result.rows;
+        } else if (kind === 'inventory') {
+            const result = await db.query(
+                'SELECT id, name, category, quantity, unit, restock_threshold, updated_at FROM inventory ORDER BY category, name'
+            );
+            rows = result.rows;
+        } else if (kind === 'labor') {
+            const result = await db.query(
+                `
+                SELECT
+                    s.id,
+                    s.shift_date,
+                    s.start_time,
+                    s.end_time,
+                    COALESCE(s.role, u.role) AS role_name,
+                    u.name AS employee_name
+                FROM employee_shifts s
+                JOIN users u ON u.id = s.user_id
+                ORDER BY s.shift_date DESC, s.start_time DESC
+                LIMIT 2000
+                `
+            );
+            rows = result.rows;
+        } else {
+            return res.status(400).json({ error: 'Unsupported export kind. Use sales, inventory, or labor.' });
+        }
+        if (!rows.length) {
+            res.setHeader('Content-Type', 'text/csv');
+            return res.send('No data\n');
+        }
+        const headers = Object.keys(rows[0]);
+        const escapeCell = (v) => {
+            if (v === null || v === undefined) return '';
+            const s = String(v);
+            if (s.includes(',') || s.includes('"') || s.includes('\n')) return `"${s.replace(/"/g, '""')}"`;
+            return s;
+        };
+        const csv = [headers.join(',')]
+            .concat(rows.map((r) => headers.map((h) => escapeCell(r[h])).join(',')))
+            .join('\n');
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="${kind}-export.csv"`);
+        res.send(`${csv}\n`);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/export-schedules', async (req, res) => {
+    try {
+        const rows = await db.query(
+            `
+            SELECT id, name, export_kind, cadence_days, is_active, last_run_at, next_run_at, created_by, created_at
+            FROM export_schedules
+            ORDER BY is_active DESC, next_run_at ASC, id DESC
+            `
+        );
+        res.json({ schedules: rows.rows });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/export-schedules', async (req, res) => {
+    try {
+        const manager = await requireManager(req, res);
+        if (!manager) return;
+        const { name, export_kind, cadence_days } = req.body || {};
+        const cleanName = String(name || '').trim();
+        const kind = String(export_kind || '').trim().toLowerCase();
+        const cadenceDays = Number(cadence_days);
+        const allowedKinds = new Set(['sales', 'inventory', 'labor']);
+        if (!cleanName) return res.status(400).json({ error: 'name is required.' });
+        if (!allowedKinds.has(kind)) return res.status(400).json({ error: 'export_kind must be sales, inventory, or labor.' });
+        if (!Number.isFinite(cadenceDays) || cadenceDays <= 0) return res.status(400).json({ error: 'cadence_days must be a positive integer.' });
+        const now = new Date();
+        const nextRunAt = addDays(now, cadenceDays);
+        const created = await db.query(
+            `
+            INSERT INTO export_schedules (name, export_kind, cadence_days, is_active, next_run_at, created_by)
+            VALUES ($1, $2, $3, TRUE, $4, $5)
+            RETURNING *
+            `,
+            [cleanName, kind, Math.floor(cadenceDays), nextRunAt, manager.email]
+        );
+        await writeAudit(manager.email, 'export_schedule.create', 'export_schedule', created.rows[0].id, { name: cleanName, kind, cadenceDays });
+        res.status(201).json(created.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/export-schedules/:id/run', async (req, res) => {
+    try {
+        const manager = await requireManager(req, res);
+        if (!manager) return;
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid schedule id.' });
+        const scheduleRes = await db.query('SELECT * FROM export_schedules WHERE id = $1', [id]);
+        if (!scheduleRes.rows.length) return res.status(404).json({ error: 'Export schedule not found.' });
+        const schedule = scheduleRes.rows[0];
+        if (!schedule.is_active) return res.status(400).json({ error: 'Cannot run inactive schedule.' });
+
+        let countRes;
+        if (schedule.export_kind === 'sales') {
+            countRes = await db.query('SELECT COUNT(*)::int AS c FROM "Transaction"');
+        } else if (schedule.export_kind === 'inventory') {
+            countRes = await db.query('SELECT COUNT(*)::int AS c FROM inventory');
+        } else {
+            countRes = await db.query('SELECT COUNT(*)::int AS c FROM employee_shifts');
+        }
+
+        const now = new Date();
+        const nextRunAt = addDays(now, Number(schedule.cadence_days || 1));
+        await db.query(
+            'UPDATE export_schedules SET last_run_at = $1, next_run_at = $2 WHERE id = $3',
+            [now, nextRunAt, id]
+        );
+        await writeAudit(manager.email, 'export_schedule.run', 'export_schedule', id, { exportKind: schedule.export_kind, rowCount: countRes.rows[0].c });
+        res.json({
+            id,
+            exportKind: schedule.export_kind,
+            rowCount: Number(countRes.rows[0].c || 0),
+            runAt: now,
+            nextRunAt,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ----------------------------
 // Manager report endpoints
 // ----------------------------
 
 // X-Report: hourly sales (mid-day snapshot)
 router.get('/reports/x', async (req, res) => {
     try {
-        const now = new Date();
-
         const stateRes = await db.query(
             'SELECT business_day_start FROM manager_report_state WHERE singleton_id = 1'
         );
         const stateRow = stateRes.rows[0];
-        const dayStart = stateRow?.business_day_start ? new Date(stateRow.business_day_start) : (() => {
-            const d = new Date(now);
-            d.setHours(0, 0, 0, 0);
-            return d;
-        })();
+        const dayStart = stateRow?.business_day_start || null;
 
         const hourlySql = `
             SELECT
@@ -400,7 +1418,11 @@ router.get('/reports/x', async (req, res) => {
                 COUNT(*) AS sales_count,
                 COALESCE(SUM(TotalAmount), 0) AS sales_total
             FROM "Transaction"
-            WHERE TransactionTimestamp >= $1 AND TransactionTimestamp < $2
+            WHERE TransactionTimestamp >= COALESCE(
+                (SELECT business_day_start FROM manager_report_state WHERE singleton_id = 1),
+                date_trunc('day', NOW())
+            )
+              AND TransactionTimestamp < NOW()
             GROUP BY hr
             ORDER BY hr
         `;
@@ -410,11 +1432,15 @@ router.get('/reports/x', async (req, res) => {
                 COUNT(*) AS sales_count,
                 COALESCE(SUM(TotalAmount), 0) AS sales_total
             FROM "Transaction"
-            WHERE TransactionTimestamp >= $1 AND TransactionTimestamp < $2
+            WHERE TransactionTimestamp >= COALESCE(
+                (SELECT business_day_start FROM manager_report_state WHERE singleton_id = 1),
+                date_trunc('day', NOW())
+            )
+              AND TransactionTimestamp < NOW()
         `;
 
-        const hourlyRows = await db.query(hourlySql, [dayStart, now]);
-        const totalsRows = await db.query(totalsSql, [dayStart, now]);
+        const hourlyRows = await db.query(hourlySql);
+        const totalsRows = await db.query(totalsSql);
         const totals = totalsRows.rows[0] || { sales_count: 0, sales_total: 0 };
 
         const salesCount = Number(totals.sales_count || 0);
@@ -432,7 +1458,8 @@ router.get('/reports/x', async (req, res) => {
             });
         }
 
-        const summary = `Business Day Start: ${dayStart.toISOString()} | Sales: ${salesCount} | Revenue: $${salesTotal.toFixed(2)} | Returns/Voids/Discards: 0/0/0`;
+        const dayStartLabel = dayStart && dayStart.toISOString ? dayStart.toISOString() : String(dayStart || 'N/A');
+        const summary = `Business Day Start: ${dayStartLabel} | Sales: ${salesCount} | Revenue: $${salesTotal.toFixed(2)} | Returns/Voids/Discards: 0/0/0`;
         const paymentMethodSummary = `Payment Methods: UNKNOWN=${salesCount} (no payment breakdown stored)`;
 
         res.json({ hours, summary, paymentMethodSummary });
@@ -490,14 +1517,18 @@ router.get('/reports/sales-by-item', async (req, res) => {
 
         const sql = `
             SELECT
-                mi.name AS item_name,
+                COALESCE(mi.name, CONCAT('Item #', ti.ProductID::text)) AS item_name,
                 COALESCE(SUM(ti.Quantity), 0) AS qty_sold,
-                COALESCE(SUM(ti.Quantity * ti.PriceAtPurchase), 0) AS revenue
+                COALESCE(SUM(ti.Quantity * ti.PriceAtPurchase), 0) AS revenue,
+                COALESCE(
+                    SUM(ti.Quantity * ti.PriceAtPurchase) / NULLIF(SUM(ti.Quantity), 0),
+                    0
+                ) AS avg_unit_price
             FROM TransactionItem ti
             JOIN "Transaction" t ON t.TransactionID = ti.TransactionID
-            JOIN menu_items mi ON mi.id = ti.ProductID
+            LEFT JOIN menu_items mi ON mi.id = ti.ProductID
             WHERE t.TransactionTimestamp >= $1 AND t.TransactionTimestamp < $2
-            GROUP BY mi.id, mi.name
+            GROUP BY ti.ProductID, mi.name
             ORDER BY revenue DESC, mi.name
         `;
 
@@ -506,9 +1537,64 @@ router.get('/reports/sales-by-item', async (req, res) => {
             itemName: r.item_name,
             quantitySold: Number(r.qty_sold || 0),
             revenue: Number(r.revenue || 0),
+            averageUnitPrice: Number(r.avg_unit_price || 0),
         }));
 
         res.json({ items, from, to });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Labor report: scheduled hours by employee and by role over date range
+router.get('/reports/labor', async (req, res) => {
+    try {
+        const { from, to } = req.query;
+        if (!from || !to) return res.status(400).json({ error: 'Missing from/to (YYYY-MM-DD)' });
+
+        const byEmployeeSql = `
+            SELECT
+                u.id AS employee_id,
+                u.name AS employee_name,
+                COALESCE(SUM(EXTRACT(EPOCH FROM (s.end_time - s.start_time)) / 3600.0), 0) AS scheduled_hours
+            FROM users u
+            LEFT JOIN employee_shifts s
+              ON s.user_id = u.id
+             AND s.shift_date >= $1
+             AND s.shift_date <= $2
+            WHERE u.role <> 'customer'
+            GROUP BY u.id, u.name
+            ORDER BY scheduled_hours DESC, u.name
+        `;
+
+        const byRoleSql = `
+            SELECT
+                COALESCE(NULLIF(TRIM(s.role), ''), u.role, 'staff') AS role_name,
+                COALESCE(SUM(EXTRACT(EPOCH FROM (s.end_time - s.start_time)) / 3600.0), 0) AS scheduled_hours
+            FROM employee_shifts s
+            JOIN users u ON u.id = s.user_id
+            WHERE s.shift_date >= $1 AND s.shift_date <= $2
+              AND u.role <> 'customer'
+            GROUP BY role_name
+            ORDER BY scheduled_hours DESC, role_name
+        `;
+
+        const [empRes, roleRes] = await Promise.all([
+            db.query(byEmployeeSql, [from, to]),
+            db.query(byRoleSql, [from, to]),
+        ]);
+
+        const byEmployee = (empRes.rows || []).map((r) => ({
+            employeeId: r.employee_id,
+            employeeName: r.employee_name,
+            scheduledHours: Number(r.scheduled_hours || 0),
+        }));
+        const byRole = (roleRes.rows || []).map((r) => ({
+            roleName: r.role_name,
+            scheduledHours: Number(r.scheduled_hours || 0),
+        }));
+
+        res.json({ from, to, byEmployee, byRole });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -523,7 +1609,7 @@ router.post('/reports/z-report', async (req, res) => {
         await db.query('BEGIN');
 
         const stateRes = await db.query(
-            'SELECT business_day_start, last_z_report_date FROM manager_report_state WHERE singleton_id = 1 FOR UPDATE'
+            'SELECT business_day_start, last_z_report_date, NOW() AS business_end FROM manager_report_state WHERE singleton_id = 1 FOR UPDATE'
         );
 
         const state = stateRes.rows[0];
@@ -532,7 +1618,7 @@ router.post('/reports/z-report', async (req, res) => {
             return res.status(500).json({ error: 'Z-report state row missing.' });
         }
 
-        const businessStart = new Date(state.business_day_start);
+        const businessStart = state.business_day_start;
         const lastZDate = state.last_z_report_date ? new Date(state.last_z_report_date) : null;
         const todayStr = new Date().toISOString().slice(0, 10);
 
@@ -541,14 +1627,15 @@ router.post('/reports/z-report', async (req, res) => {
         // Failsafe: allow rerunning the Z-report even if it was already generated today,
         // but DO NOT advance/reset the business day start again (prevents breaking report windows).
 
-        const businessEnd = new Date();
+        const businessEnd = state.business_end;
 
         const totalsSql = `
             SELECT
                 COUNT(*) AS sales_count,
                 COALESCE(SUM(TotalAmount), 0) AS sales_total
             FROM "Transaction"
-            WHERE TransactionTimestamp >= $1 AND TransactionTimestamp < $2
+            WHERE TransactionTimestamp >= (SELECT business_day_start FROM manager_report_state WHERE singleton_id = 1)
+              AND TransactionTimestamp < NOW()
         `;
 
         const topItemSql = `
@@ -558,25 +1645,67 @@ router.post('/reports/z-report', async (req, res) => {
             FROM TransactionItem ti
             JOIN menu_items mi ON mi.id = ti.ProductID
             JOIN "Transaction" t ON t.TransactionID = ti.TransactionID
-            WHERE t.TransactionTimestamp >= $1 AND t.TransactionTimestamp < $2
+            WHERE t.TransactionTimestamp >= (SELECT business_day_start FROM manager_report_state WHERE singleton_id = 1)
+              AND t.TransactionTimestamp < NOW()
             GROUP BY mi.id, mi.name
             ORDER BY units DESC, mi.name
             LIMIT 1
         `;
 
-        const totalsRows = await db.query(totalsSql, [businessStart, businessEnd]);
+        const totalsRows = await db.query(totalsSql);
         const totals = totalsRows.rows[0] || { sales_count: 0, sales_total: 0 };
 
         const salesCount = Number(totals.sales_count || 0);
         const salesTotal = Number(totals.sales_total || 0);
 
         const taxAmount = salesTotal * TAX_RATE;
-        const totalCash = salesTotal;
-        const discounts = 0;
-        const voids = 0;
-        const serviceCharges = 0;
+        const paymentsSql = `
+            SELECT
+                CASE
+                    WHEN LOWER(COALESCE(NULLIF(TRIM(tp.payment_method), ''), 'unspecified')) = 'unspecified'
+                        THEN CASE
+                            WHEN o.customer_account_id IS NOT NULL THEN 'card'
+                            ELSE 'cash'
+                        END
+                    ELSE LOWER(COALESCE(NULLIF(TRIM(tp.payment_method), ''), 'unspecified'))
+                END AS method_name,
+                COALESCE(SUM(COALESCE(tp.amount, t.TotalAmount)), 0) AS total_amount
+            FROM "Transaction" t
+            LEFT JOIN transaction_payments tp ON tp.transaction_id = t.TransactionID
+            LEFT JOIN orders o ON o.transaction_id = t.TransactionID
+            WHERE t.TransactionTimestamp >= (SELECT business_day_start FROM manager_report_state WHERE singleton_id = 1)
+              AND t.TransactionTimestamp < NOW()
+            GROUP BY method_name
+            ORDER BY total_amount DESC, method_name
+        `;
+        const adjustmentsSql = `
+            SELECT
+                COALESCE(SUM(CASE WHEN adjustment_type = 'discount' THEN amount ELSE 0 END), 0) AS discounts,
+                COALESCE(SUM(CASE WHEN adjustment_type IN ('void', 'refund', 'comp') THEN amount ELSE 0 END), 0) AS voids,
+                COALESCE(SUM(CASE WHEN adjustment_type = 'service_charge' THEN amount ELSE 0 END), 0) AS service_charges
+            FROM manager_financial_adjustments
+            WHERE created_at >= (SELECT business_day_start FROM manager_report_state WHERE singleton_id = 1)
+              AND created_at < NOW()
+        `;
+        const [paymentsRes, adjustmentsRes] = await Promise.all([
+            db.query(paymentsSql),
+            db.query(adjustmentsSql),
+        ]);
+        const paymentMethods = (paymentsRes.rows || []).map((r) => ({
+            methodName: r.method_name,
+            totalAmount: Number(r.total_amount || 0),
+        }));
+        const adj = adjustmentsRes.rows[0] || {};
+        const discounts = Number(adj.discounts || 0);
+        const voids = Number(adj.voids || 0);
+        const serviceCharges = Number(adj.service_charges || 0);
+        const totalCash = Number(
+            paymentMethods
+                .filter((pm) => String(pm.methodName).toLowerCase() === 'cash')
+                .reduce((sum, pm) => sum + Number(pm.totalAmount || 0), 0)
+        );
 
-        const topRows = await db.query(topItemSql, [businessStart, businessEnd]);
+        const topRows = await db.query(topItemSql);
         const topItem = topRows.rows[0]?.item_name || 'N/A';
 
         await db.query(
@@ -598,20 +1727,22 @@ router.post('/reports/z-report', async (req, res) => {
             await db.query(
                 `
                 UPDATE manager_report_state
-                SET business_day_start = $1, last_z_report_date = $2
+                SET business_day_start = NOW(), last_z_report_date = $1
                 WHERE singleton_id = 1
                 `,
-                [businessEnd, todayStr]
+                [todayStr]
             );
         }
 
         await db.query('COMMIT');
 
-        const paymentMethods = [{ methodName: 'Unspecified', totalAmount: salesTotal }];
+        const paymentSummary = paymentMethods.length > 0
+            ? paymentMethods
+            : [{ methodName: 'unspecified', totalAmount: salesTotal }];
 
         res.json({
-            startAt: businessStart.toISOString(),
-            endAt: businessEnd.toISOString(),
+            startAt: businessStart?.toISOString ? businessStart.toISOString() : String(businessStart),
+            endAt: businessEnd?.toISOString ? businessEnd.toISOString() : String(businessEnd),
             salesTotal,
             taxAmount,
             salesCount,
@@ -621,7 +1752,7 @@ router.post('/reports/z-report', async (req, res) => {
             serviceCharges,
             topItem,
             employeeSignature,
-            paymentMethods,
+            paymentMethods: paymentSummary,
         });
     } catch (err) {
         try {
