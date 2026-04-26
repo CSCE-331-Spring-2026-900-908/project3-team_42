@@ -6,6 +6,7 @@ const { tryGetCustomerIdFromAuthHeader } = require('../lib/customerSession');
 
 const TAX_RATE = 0.0825;
 const BOBAS_PER_FREE_REWARD = 5;
+const ORDER_NUMBER_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 function calculateRewardPoints(items) {
     return (items || []).reduce((sum, item) => {
@@ -27,6 +28,15 @@ function buildRewardsSummary(pointsBalance) {
         freeBobaCount,
         pointsToNextFreeBoba,
     };
+}
+
+function generateOrderNumber(length = 4) {
+    let orderNumber = '';
+    for (let index = 0; index < length; index += 1) {
+        const randomIndex = Math.floor(Math.random() * ORDER_NUMBER_ALPHABET.length);
+        orderNumber += ORDER_NUMBER_ALPHABET[randomIndex];
+    }
+    return orderNumber;
 }
 
 function parseISODateParam(dateStr) {
@@ -195,6 +205,7 @@ router.post('/orders', async (req, res) => {
         const rewardsSummary = buildRewardsSummary(rewardsBalance);
         res.status(201).json({
             id: orderId,
+            orderNumber: generateOrderNumber(),
             message: 'Order created successfully',
             pointsEarned,
             rewardsBalance: rewardsSummary.pointsBalance,

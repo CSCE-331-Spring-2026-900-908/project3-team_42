@@ -120,6 +120,7 @@ test('customer kiosk orders award points to the signed-in customer account', asy
     assert.equal(response.status, 201);
     const body = await response.json();
     assert.equal(body.id, 101);
+    assert.match(body.orderNumber, /^[A-Z0-9]{4}$/);
     assert.equal(body.pointsEarned, 2);
     assert.equal(body.rewardsBalance, 12);
     assert.equal(body.freeBobaCount, 2);
@@ -207,6 +208,7 @@ test('guest kiosk orders do not create rewards activity', async () => {
 
     assert.equal(response.status, 201);
     const body = await response.json();
+    assert.match(body.orderNumber, /^[A-Z0-9]{4}$/);
     assert.equal(body.pointsEarned, 0);
     assert.equal(body.rewardsBalance, 0);
     assert.equal(body.freeBobaCount, 0);

@@ -38,6 +38,11 @@ export default function OrderConfirmation() {
     return null;
   }
 
+  const filledRewardChips =
+    rewards.progressCount === 0 && rewards.pointsBalance > 0
+      ? BOBAS_PER_FREE_REWARD
+      : rewards.progressCount;
+
   const handleStartNewOrder = () => {
     sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
     navigate('/customer', { replace: true });
@@ -68,7 +73,7 @@ export default function OrderConfirmation() {
             <div className="grid gap-4 sm:grid-cols-3 lg:w-[440px] lg:grid-cols-1">
               <div className="rounded-3xl border border-stone-200 bg-stone-50 px-5 py-4">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-stone-400">Order number</p>
-                <p className="mt-2 text-4xl font-black text-stone-900">#{order.orderId}</p>
+                <p className="mt-2 text-4xl font-black text-stone-900">{order.orderNumber || order.orderId}</p>
               </div>
               <div className="rounded-3xl border border-violet-200 bg-violet-50 px-5 py-4">
                 <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-500">Total paid</p>
@@ -156,14 +161,13 @@ export default function OrderConfirmation() {
 
               <div className="mt-6 grid grid-cols-5 gap-3">
                 {Array.from({ length: BOBAS_PER_FREE_REWARD }).map((_, index) => {
-                  const filled = index < rewards.progressCount;
-                  const unlocked = rewards.progressCount === 0 && rewards.pointsBalance > 0;
+                  const filled = index < filledRewardChips;
 
                   return (
                     <div
                       key={index}
                       className={`flex aspect-square items-center justify-center rounded-2xl border text-2xl transition ${
-                        filled || (unlocked && index === BOBAS_PER_FREE_REWARD - 1)
+                        filled
                           ? 'border-amber-300 bg-amber-100 text-amber-700 shadow-sm'
                           : 'border-white/80 bg-white/70 text-stone-300'
                       } ${filled ? 'reward-chip-filled' : ''}`}

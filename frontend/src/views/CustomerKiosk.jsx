@@ -357,6 +357,7 @@ export default function CustomerKiosk() {
       const previousFreeBobaCount = Math.floor(Number(rewardsSummary?.pointsBalance || 0) / 5);
       const confirmationOrder = {
         orderId: res.data.id,
+        orderNumber: res.data.orderNumber,
         items: orderSnapshot,
         itemCount,
         subtotal,
