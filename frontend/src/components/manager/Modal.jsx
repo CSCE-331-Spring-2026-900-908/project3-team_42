@@ -1,59 +1,8 @@
-import { useEffect, useRef, useCallback } from 'react';
-
 export default function Modal({ open, title, onClose, children }) {
-  const dialogRef = useRef(null);
-  const previousFocus = useRef(null);
-
-  const getFocusable = useCallback(() => {
-    if (!dialogRef.current) return [];
-    return Array.from(
-      dialogRef.current.querySelectorAll(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-      )
-    );
-  }, []);
-
-  useEffect(() => {
-    if (!open) return;
-
-    previousFocus.current = document.activeElement;
-
-    const timer = requestAnimationFrame(() => {
-      const els = getFocusable();
-      if (els.length > 0) els[0].focus();
-    });
-
-    const onKeyDown = (e) => {
-      if (e.key === 'Escape') { onClose?.(); return; }
-
-      if (e.key === 'Tab') {
-        const els = getFocusable();
-        if (els.length === 0) return;
-        const first = els[0];
-        const last = els[els.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    };
-
-    window.addEventListener('keydown', onKeyDown);
-    return () => {
-      cancelAnimationFrame(timer);
-      window.removeEventListener('keydown', onKeyDown);
-      previousFocus.current?.focus();
-    };
-  }, [open, onClose, getFocusable]);
-
   if (!open) return null;
 
   return (
     <div
-      ref={dialogRef}
       role="dialog"
       aria-modal="true"
       aria-label={title}

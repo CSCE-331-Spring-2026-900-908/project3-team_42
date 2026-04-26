@@ -266,15 +266,14 @@ export function DonutChart({ data, size = 180 }) {
   const cx = size / 2;
   const cy = size / 2;
 
-  let angle = 0;
-  const segments = safe.map((d, i) => {
+  const segments = safe.reduce((acc, d, i) => {
     const value = Number(d.value || 0);
     const pct = total > 0 ? value / total : 0;
-    const start = angle;
-    const end = angle + pct * 360;
-    angle = end;
-    return { ...d, i, start, end, color: colors[i % colors.length] };
-  });
+    const start = acc.length === 0 ? 0 : acc[acc.length - 1].end;
+    const end = start + pct * 360;
+    acc.push({ ...d, i, start, end, color: colors[i % colors.length] });
+    return acc;
+  }, []);
 
   return (
     <div className="flex flex-col items-center gap-3">
@@ -308,4 +307,3 @@ export function DonutChart({ data, size = 180 }) {
     </div>
   );
 }
-

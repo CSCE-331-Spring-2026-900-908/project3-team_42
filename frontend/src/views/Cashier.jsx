@@ -49,10 +49,19 @@ export default function Cashier() {
   const [toppings, setToppings] = useState([]);
 
   const TOPPING_OPTIONS = [
-    { id: 'boba', name: 'Boba (+0.50)', price: 0.50 },
-    { id: 'lychee_jelly', name: 'Lychee Jelly (+0.50)', price: 0.50 },
-    { id: 'pudding', name: 'Pudding (+0.50)', price: 0.50 }
+    { id: 'pearls_boba', name: 'Pearls (Boba)', price: 0.50 },
+    { id: 'lychee_jelly', name: 'Lychee Jelly', price: 0.50 },
+    { id: 'crystal_boba', name: 'Crystal Boba', price: 0.50 },
+    { id: 'ice_cream', name: 'Ice Cream', price: 0.50 },
+    { id: 'coffee_jelly', name: 'Coffee Jelly', price: 0.50 },
+    { id: 'honey_jelly', name: 'Honey Jelly', price: 0.50 },
+    { id: 'mango_popping_boba', name: 'Mango Popping Boba', price: 0.50 },
+    { id: 'creama', name: 'Creama', price: 0.50 },
+    { id: 'pudding', name: 'Pudding', price: 0.50 },
+    { id: 'strawberry_popping_boba', name: 'Strawberry Popping Boba', price: 0.50 },
   ];
+
+  const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
 
   const handleDrinkClick = (item) => {
     setCustomizingItem(item);
@@ -68,11 +77,13 @@ export default function Cashier() {
   };
 
   const confirmCustomization = () => {
-    const basePrice = parseFloat(customizingItem.default_price);
+    const basePrice = getBasePrice(customizingItem);
     const toppingsPrice = toppings.length * 0.50;
     const customPrice = basePrice + toppingsPrice;
     
-    const toppingNames = toppings.map(tid => TOPPING_OPTIONS.find(o => o.id === tid)?.name.split(' ')[0]);
+    const toppingNames = toppings
+      .map((tid) => TOPPING_OPTIONS.find((o) => o.id === tid)?.name)
+      .filter(Boolean);
 
     const customization = {
       sweetness: `${sweetness}%`,
@@ -119,14 +130,14 @@ export default function Cashier() {
   const handleCheckout = async () => {
     if (cart.length === 0) return;
 
-    const total_amount = cart.reduce((sum, item) => sum + (item.custom_price ?? parseFloat(item.default_price)) * item.quantity, 0);
+    const total_amount = cart.reduce((sum, item) => sum + (item.custom_price ?? getBasePrice(item)) * item.quantity, 0);
 
     try {
       const formattedItems = cart.map((i) => ({
         menu_item_id: i.id,
         quantity: i.quantity,
         customization: i.customization,
-        price: i.custom_price ?? i.default_price,
+        price: i.custom_price ?? getBasePrice(i),
       }));
 
       const res = await api.post('/orders', {
@@ -142,7 +153,7 @@ export default function Cashier() {
     }
   };
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.custom_price ?? parseFloat(item.default_price)) * item.quantity, 0);
+  const subtotal = cart.reduce((sum, item) => sum + (item.custom_price ?? getBasePrice(item)) * item.quantity, 0);
   const tax = subtotal * 0.0825; // 8.25% TX Tax approx
   const total = subtotal + tax;
 
@@ -249,7 +260,7 @@ export default function Cashier() {
                   {item.name}
                 </span>
                 <span className="mt-1.5 text-sm font-medium text-slate-500">
-                  ${parseFloat(item.default_price).toFixed(2)}
+                  ${getBasePrice(item).toFixed(2)}
                 </span>
               </button>
             ))}
@@ -274,7 +285,7 @@ export default function Cashier() {
                 <div key={item.unique_id} className="flex flex-col">
                   <div className="flex justify-between items-start font-bold text-slate-800 text-[15px]">
                     <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
-                    <span>${(item.custom_price ?? parseFloat(item.default_price)).toFixed(2)}</span>
+                    <span>${(item.custom_price ?? getBasePrice(item)).toFixed(2)}</span>
                   </div>
                   {item.customization && (
                     <div className="text-xs text-slate-500 mt-1 leading-relaxed">
@@ -284,7 +295,7 @@ export default function Cashier() {
                   )}
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-4">
-                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">−</button>
+                      <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">-</button>
                       <span className="font-bold tabular-nums text-slate-800">{item.quantity}</span>
                       <button onClick={() => incrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-md bg-slate-100 text-lg font-bold text-slate-600 hover:bg-slate-200">+</button>
                     </div>
@@ -297,13 +308,6 @@ export default function Cashier() {
         </div>
 
         <div className="p-6 shrink-0 bg-white">
-          <div className="bg-[#f8fafc] rounded-xl border border-slate-100 p-4 mb-6">
-            <p className="text-sm font-bold text-slate-900 mb-2">Rewards Account</p>
-            <button className="w-full py-2 bg-slate-200 hover:bg-[#e2e8f0] rounded border border-slate-300 text-sm font-semibold text-slate-700 transition">
-              + Link Rewards Account
-            </button>
-          </div>
-
           <div className="space-y-3 border-t border-slate-100 pt-5">
             <div className="flex justify-between text-[15px] font-medium text-slate-600">
               <span>Subtotal</span>
@@ -377,18 +381,16 @@ export default function Cashier() {
 
               <div>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
-                <div className="flex flex-col gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {TOPPING_OPTIONS.map(topping => (
-                    <label key={topping.id} className={`flex cursor-pointer items-center justify-between rounded-xl border p-3 transition ${toppings.includes(topping.id) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
-                      <span className="font-medium text-slate-800">{topping.name.replace(' (+0.50)', '')}</span>
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          checked={toppings.includes(topping.id)}
-                          onChange={() => toggleTopping(topping.id)}
-                          className="h-5 w-5 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
-                        />
-                      </div>
+                    <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition ${toppings.includes(topping.id) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                      <span className="text-sm font-medium leading-tight text-slate-800">{topping.name}</span>
+                      <input
+                        type="checkbox"
+                        checked={toppings.includes(topping.id)}
+                        onChange={() => toggleTopping(topping.id)}
+                        className="h-5 w-5 shrink-0 rounded border-slate-300 text-blue-500 focus:ring-blue-400 focus:ring-offset-1"
+                      />
                     </label>
                   ))}
                 </div>
@@ -400,7 +402,7 @@ export default function Cashier() {
                 onClick={confirmCustomization}
                 className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
               >
-                Add — <span className="tabular-nums">${(parseFloat(customizingItem.default_price) + toppings.length * 0.50).toFixed(2)}</span>
+                Add — <span className="tabular-nums">${(getBasePrice(customizingItem) + toppings.length * 0.50).toFixed(2)}</span>
               </button>
             </div>
           </div>

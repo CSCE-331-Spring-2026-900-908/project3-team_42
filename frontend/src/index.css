@@ -25,7 +25,6 @@
     color: var(--color-ink);
   }
 
-  /* Portal mount for accessibility UI — does not block clicks on #root (children set their own pointer-events). */
   .a11y-root {
     position: fixed;
     inset: 0;
@@ -33,64 +32,15 @@
     pointer-events: none;
   }
 
-  /* ── Reduced-motion (Trevor) ────────────────────────────── */
-  @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
-      animation-duration: 0.01ms !important;
-      animation-iteration-count: 1 !important;
-      transition-duration: 0.01ms !important;
-      scroll-behavior: auto !important;
-    }
-  }
-
-  html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after {
+  html.reduce-motion *,
+  html.reduce-motion *::before,
+  html.reduce-motion *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
 
-  /* ── Strong focus outlines (Trevor + Lea) ───────────────── */
-  :focus-visible {
-    outline: 3px solid #7c3aed !important;
-    outline-offset: 2px !important;
-  }
-
-  html.high-contrast :focus-visible {
-    outline-color: #000 !important;
-    outline-width: 4px !important;
-  }
-
-  /* ── Skip-to-content link (Lea) ─────────────────────────── */
-  .skip-link {
-    position: absolute;
-    left: -9999px;
-    top: auto;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    z-index: 9999;
-    padding: 1rem 1.5rem;
-    background: #7c3aed;
-    color: #fff;
-    font-weight: 700;
-    font-size: 1rem;
-    text-decoration: none;
-    border-radius: 0 0 0.75rem 0;
-  }
-
-  .skip-link:focus {
-    position: fixed;
-    left: 0;
-    top: 0;
-    width: auto;
-    height: auto;
-    overflow: visible;
-    outline: 3px solid #000;
-    outline-offset: 2px;
-  }
-
-  /* ── High-contrast mode (Vishnu) ────────────────────────── */
   html.high-contrast {
     --color-cream: #ffffff;
     --color-ink: #000000;
@@ -101,18 +51,12 @@
     color: #000 !important;
   }
 
-  /* High contrast applies only inside the app (#root). A11y UI lives in #a11y-root and stays normal. */
   html.high-contrast #root * {
     border-color: #000 !important;
   }
 
   html.high-contrast #root img {
     border: 2px solid #000 !important;
-  }
-
-  html.high-contrast #root a,
-  html.high-contrast #root button {
-    text-decoration-color: #000;
   }
 
   html.high-contrast #root a {
@@ -161,14 +105,59 @@
     color: #000 !important;
   }
 
-  html.high-contrast .skip-link {
-    background: #000;
-    color: #fff;
-  }
 }
 
 @layer utilities {
   .font-display {
     font-family: var(--font-display);
+  }
+
+  @keyframes confirmation-pop {
+    0% {
+      transform: scale(0.86);
+      opacity: 0;
+    }
+    65% {
+      transform: scale(1.08);
+      opacity: 1;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  @keyframes reward-burst {
+    0%, 100% {
+      transform: translateY(0);
+      box-shadow: 0 0 0 rgba(251, 191, 36, 0);
+    }
+    50% {
+      transform: translateY(-4px);
+      box-shadow: 0 14px 30px rgba(251, 191, 36, 0.22);
+    }
+  }
+
+  @keyframes chip-fill {
+    0% {
+      transform: translateY(8px) scale(0.94);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
+
+  .confirmation-badge {
+    animation: confirmation-pop 520ms ease-out both;
+  }
+
+  .reward-burst {
+    animation: reward-burst 2.4s ease-in-out infinite;
+  }
+
+  .reward-chip-filled {
+    animation: chip-fill 380ms ease-out both;
   }
 }
