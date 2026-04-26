@@ -4,6 +4,7 @@ import Manager from './views/Manager';
 import Cashier from './views/Cashier';
 import CustomerKiosk from './views/CustomerKiosk';
 import MenuBoard from './views/MenuBoard';
+import OrderConfirmation from './views/OrderConfirmation';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/manager" element={<Manager />} />
         <Route path="/cashier" element={<Cashier />} />
         <Route path="/customer" element={<CustomerKiosk />} />
+        <Route path="/customer/confirmation" element={<OrderConfirmation />} />
         <Route path="/menuboard" element={<MenuBoard />} />
       </Routes>
     </BrowserRouter>

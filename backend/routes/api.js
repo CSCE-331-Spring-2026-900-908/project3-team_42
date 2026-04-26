@@ -5,6 +5,29 @@ const { GoogleGenAI } = require('@google/genai');
 const { tryGetCustomerIdFromAuthHeader } = require('../lib/customerSession');
 
 const TAX_RATE = 0.0825;
+const BOBAS_PER_FREE_REWARD = 5;
+
+function calculateRewardPoints(items) {
+    return (items || []).reduce((sum, item) => {
+        const quantity = Number(item.quantity || 0);
+        return sum + quantity;
+    }, 0);
+}
+
+function buildRewardsSummary(pointsBalance) {
+    const normalizedBalance = Math.max(0, Number(pointsBalance || 0));
+    const freeBobaCount = Math.floor(normalizedBalance / BOBAS_PER_FREE_REWARD);
+    const pointsToNextFreeBoba =
+        normalizedBalance % BOBAS_PER_FREE_REWARD === 0
+            ? BOBAS_PER_FREE_REWARD
+            : BOBAS_PER_FREE_REWARD - (normalizedBalance % BOBAS_PER_FREE_REWARD);
+
+    return {
+        pointsBalance: normalizedBalance,
+        freeBobaCount,
+        pointsToNextFreeBoba,
+    };
+}
 
 function parseISODateParam(dateStr) {
     // Expects YYYY-MM-DD from the frontend.
@@ -56,17 +79,21 @@ router.get('/employees', async (req, res) => {
 router.post('/orders', async (req, res) => {
     const { cashier_id, total_amount, items, placed_via } = req.body;
     let customerAccountId = null;
+    let pointsEarned = 0;
 
     if (placed_via === 'customer_kiosk') {
         customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
+        if (customerAccountId) {
+            pointsEarned = calculateRewardPoints(items);
+        }
     }
 
     try {
         await db.query('BEGIN');
 
         const orderResult = await db.query(
-            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status) VALUES ($1, $2, $3, 'completed') RETURNING id",
-            [cashier_id, customerAccountId, total_amount]
+            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status, points_earned) VALUES ($1, $2, $3, 'completed', $4) RETURNING id",
+            [cashier_id, customerAccountId, total_amount, pointsEarned]
         );
         const orderId = orderResult.rows[0].id;
 
@@ -139,8 +166,41 @@ router.post('/orders', async (req, res) => {
             [transactionId, orderId]
         );
 
+        let rewardsBalance = null;
+        if (customerAccountId && pointsEarned > 0) {
+            await db.query(
+                `INSERT INTO points_ledger (customer_account_id, activity_type, points_delta, order_id, metadata)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [
+                    customerAccountId,
+                    'order',
+                    pointsEarned,
+                    orderId,
+                    JSON.stringify({ placed_via: placed_via || 'unknown' }),
+                ]
+            );
+
+            const rewardsResult = await db.query(
+                `UPDATE customer_accounts
+                 SET points_balance = points_balance + $1,
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $2
+                 RETURNING points_balance`,
+                [pointsEarned, customerAccountId]
+            );
+            rewardsBalance = rewardsResult.rows[0]?.points_balance ?? null;
+        }
+
         await db.query('COMMIT');
-        res.status(201).json({ id: orderId, message: 'Order created successfully' });
+        const rewardsSummary = buildRewardsSummary(rewardsBalance);
+        res.status(201).json({
+            id: orderId,
+            message: 'Order created successfully',
+            pointsEarned,
+            rewardsBalance: rewardsSummary.pointsBalance,
+            freeBobaCount: rewardsSummary.freeBobaCount,
+            pointsToNextFreeBoba: rewardsSummary.pointsToNextFreeBoba,
+        });
     } catch (err) {
         await db.query('ROLLBACK');
         res.status(500).json({ error: err.message });
@@ -154,7 +214,7 @@ router.post('/orders/:orderId/cancel', async (req, res) => {
         await db.query('BEGIN');
 
         const orderRes = await db.query(
-            'SELECT id, status, transaction_id FROM orders WHERE id = $1',
+            'SELECT id, status, transaction_id, customer_account_id, points_earned FROM orders WHERE id = $1',
             [orderId]
         );
 
@@ -200,10 +260,66 @@ router.post('/orders/:orderId/cancel', async (req, res) => {
             );
         }
 
+        if (order.customer_account_id && Number(order.points_earned || 0) > 0) {
+            const reversalPoints = Number(order.points_earned);
+            await db.query(
+                `INSERT INTO points_ledger (customer_account_id, activity_type, points_delta, order_id, metadata)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [
+                    order.customer_account_id,
+                    'order_reversal',
+                    -reversalPoints,
+                    orderId,
+                    JSON.stringify({ reason: 'order_cancelled' }),
+                ]
+            );
+
+            await db.query(
+                `UPDATE customer_accounts
+                 SET points_balance = GREATEST(0, points_balance - $1),
+                     updated_at = CURRENT_TIMESTAMP
+                 WHERE id = $2`,
+                [reversalPoints, order.customer_account_id]
+            );
+        }
+
         await db.query('COMMIT');
         res.json({ id: orderId, message: 'Order cancelled successfully' });
     } catch (err) {
         await db.query('ROLLBACK');
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.get('/rewards/me', async (req, res) => {
+    const customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
+    if (!customerAccountId) {
+        return res.status(401).json({ error: 'Not authenticated' });
+    }
+
+    try {
+        const result = await db.query(
+            'SELECT id, name, email, points_balance FROM customer_accounts WHERE id = $1',
+            [customerAccountId]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Customer account not found' });
+        }
+
+        const customer = result.rows[0];
+        const rewardsSummary = buildRewardsSummary(customer.points_balance);
+        res.json({
+            customer: {
+                id: customer.id,
+                name: customer.name,
+                email: customer.email,
+            },
+            pointsBalance: rewardsSummary.pointsBalance,
+            freeBobaCount: rewardsSummary.freeBobaCount,
+            pointsToNextFreeBoba: rewardsSummary.pointsToNextFreeBoba,
+        });
+    } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });

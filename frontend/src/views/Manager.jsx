@@ -56,20 +56,16 @@ export default function Manager() {
 
   useEffect(() => {
     if (!user || activeTab !== 'inventory') return;
-    setInventoryError(null);
     api
       .get('/inventory')
-      .then((res) => setInventory(res.data))
+      .then((res) => {
+        setInventory(res.data);
+        setInventoryError(null);
+      })
       .catch((err) => {
         setInventoryError(err.response?.data?.error || err.message || 'Failed to load inventory');
       });
   }, [user, activeTab]);
-
-  useEffect(() => {
-    // Keep UX tight: when switching report tabs, clear messages and close modals.
-    setFeedback('');
-    setModal((m) => ({ ...m, open: false, loading: false, error: null, data: null }));
-  }, [reportTab]);
 
   const handleLogin = (credentialResponse) => {
     const decoded = jwtDecode(credentialResponse.credential);
@@ -101,6 +97,12 @@ export default function Manager() {
   const setModalError = (err) => {
     const msg = err?.response?.data?.error || err?.message || 'Request failed';
     setModal((m) => ({ ...m, loading: false, error: msg }));
+  };
+
+  const handleReportTabChange = (nextTab) => {
+    setFeedback('');
+    setModal((m) => ({ ...m, open: false, loading: false, error: null, data: null }));
+    setReportTab(nextTab);
   };
 
   const openProductUsage = () => {
@@ -345,7 +347,7 @@ export default function Manager() {
                   role="tab"
                   aria-selected={reportTab === 'productUsage'}
                   aria-controls="report-panel"
-                  onClick={() => setReportTab('productUsage')}
+                  onClick={() => handleReportTabChange('productUsage')}
                   className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'productUsage' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
@@ -357,7 +359,7 @@ export default function Manager() {
                   role="tab"
                   aria-selected={reportTab === 'xReport'}
                   aria-controls="report-panel"
-                  onClick={() => setReportTab('xReport')}
+                  onClick={() => handleReportTabChange('xReport')}
                   className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'xReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
@@ -369,7 +371,7 @@ export default function Manager() {
                   role="tab"
                   aria-selected={reportTab === 'zReport'}
                   aria-controls="report-panel"
-                  onClick={() => setReportTab('zReport')}
+                  onClick={() => handleReportTabChange('zReport')}
                   className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'zReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}
@@ -381,7 +383,7 @@ export default function Manager() {
                   role="tab"
                   aria-selected={reportTab === 'salesReport'}
                   aria-controls="report-panel"
-                  onClick={() => setReportTab('salesReport')}
+                  onClick={() => handleReportTabChange('salesReport')}
                   className={`min-h-[44px] px-4 py-2 shadow-sm font-bold rounded ${
                     reportTab === 'salesReport' ? 'bg-teal-700 text-white' : 'bg-white text-teal-700 hover:bg-teal-50 border border-teal-200'
                   }`}

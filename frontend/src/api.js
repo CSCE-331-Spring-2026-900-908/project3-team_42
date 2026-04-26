@@ -4,6 +4,7 @@ const origin = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
 /** localStorage key for customer kiosk JWT (set after Google sign-in). */
 export const CUSTOMER_SESSION_STORAGE_KEY = 'customer_kiosk_session';
+export const CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY = 'customer_order_confirmation';
 
 const api = axios.create({
   baseURL: `${String(origin).replace(/\/$/, '')}/api`,

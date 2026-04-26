@@ -297,14 +297,7 @@ export default function Cashier() {
         </div>
 
         <div className="p-6 shrink-0 bg-white">
-          <div className="bg-[#f8fafc] rounded-xl border border-slate-100 p-4 mb-6">
-            <p className="text-sm font-bold text-slate-900 mb-2">Rewards Account</p>
-            <button className="w-full py-2 bg-slate-200 hover:bg-[#e2e8f0] rounded border border-slate-300 text-sm font-semibold text-slate-700 transition">
-              + Link Rewards Account
-            </button>
-          </div>
-
-          <div className="space-y-3 border-t border-slate-100 pt-5">
+          <div className="space-y-3 pt-1">
             <div className="flex justify-between text-[15px] font-medium text-slate-600">
               <span>Subtotal</span>
               <span>${subtotal.toFixed(2)}</span>
