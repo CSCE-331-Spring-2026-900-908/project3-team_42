@@ -134,6 +134,7 @@ function buildMenuItems() {
     description: "Delicious " + item.name,
     category: item.category,
     default_price: item.default_price,
+    discount_percent: 0,
     image_url: '/images/placeholder.png',
     is_available: true
   }));
@@ -233,7 +234,11 @@ function main() {
 
   writeCsv('users.csv', ['id', 'name', 'role', 'email'], users);
   writeCsv('inventory.csv', ['id', 'name', 'category', 'quantity', 'unit', 'restock_threshold'], inventory);
-  writeCsv('menu_items.csv', ['id', 'name', 'description', 'category', 'default_price', 'image_url', 'is_available'], menuItems);
+  writeCsv(
+    'menu_items.csv',
+    ['id', 'name', 'description', 'category', 'default_price', 'discount_percent', 'image_url', 'is_available'],
+    menuItems
+  );
   writeCsv('product_inventory.csv', ['ProductID', 'InventoryID'], productInventory);
   writeCsv('transactions.csv', ['TransactionID', 'TransactionTimestamp', 'TotalAmount'], transactions);
   writeCsv('transaction_items.csv', ['TransactionItemID', 'TransactionID', 'ProductID', 'Quantity', 'PriceAtPurchase'], transactionItems);

@@ -5,7 +5,7 @@
 
 \copy users (id, name, role, email) FROM 'seed-data/users.csv' WITH (FORMAT csv, HEADER true);
 \copy inventory (id, name, category, quantity, unit, restock_threshold) FROM 'seed-data/inventory.csv' WITH (FORMAT csv, HEADER true);
-\copy menu_items (id, name, description, category, default_price, image_url, is_available) FROM 'seed-data/menu_items.csv' WITH (FORMAT csv, HEADER true);
+\copy menu_items (id, name, description, category, default_price, discount_percent, image_url, is_available) FROM 'seed-data/menu_items.csv' WITH (FORMAT csv, HEADER true);
 \copy ProductInventory (ProductID, InventoryID) FROM 'seed-data/product_inventory.csv' WITH (FORMAT csv, HEADER true);
 \copy "Transaction" (TransactionID, TransactionTimestamp, TotalAmount) FROM 'seed-data/transactions.csv' WITH (FORMAT csv, HEADER true);
 \copy TransactionItem (TransactionItemID, TransactionID, ProductID, Quantity, PriceAtPurchase) FROM 'seed-data/transaction_items.csv' WITH (FORMAT csv, HEADER true);

@@ -74,6 +74,7 @@ export default function CustomerKiosk() {
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
   const googleSignInAvailable = Boolean(googleClientId);
+  const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
 
   useEffect(() => {
     const token = localStorage.getItem(CUSTOMER_SESSION_STORAGE_KEY);
@@ -290,7 +291,7 @@ export default function CustomerKiosk() {
     setIsChatting(true);
 
     try {
-      const menuContext = menuItems.map((i) => `${i.name}: ${i.description} ($${i.default_price})`).join('; ');
+      const menuContext = menuItems.map((i) => `${i.name}: ${i.description} ($${getBasePrice(i).toFixed(2)})`).join('; ');
       const res = await api.post('/chat', { message: userMsg, menuContext, language });
       setChatLog((prev) => [...prev, { sender: 'ai', text: res.data.reply }]);
     } catch {
@@ -322,7 +323,7 @@ export default function CustomerKiosk() {
     if (!customizingItem) return;
     const finalItem = {
       ...customizingItem,
-      custom_price: parseFloat(customizingItem.default_price) + (selectedToppings.length * 0.5),
+      custom_price: getBasePrice(customizingItem) + (selectedToppings.length * 0.5),
       customization: {
         sweetness,
         ice,
@@ -359,7 +360,7 @@ export default function CustomerKiosk() {
     setCart((prev) => prev.filter((line) => line.unique_id !== unique_id));
   };
 
-  const cartTotal = cart.reduce((sum, line) => sum + (line.custom_price ?? parseFloat(line.default_price)) * line.quantity, 0);
+  const cartTotal = cart.reduce((sum, line) => sum + (line.custom_price ?? getBasePrice(line)) * line.quantity, 0);
   const itemCount = cart.reduce((n, line) => n + line.quantity, 0);
 
   const handleCheckout = () => {
@@ -374,7 +375,7 @@ export default function CustomerKiosk() {
       menu_item_id: i.id,
       quantity: i.quantity,
       customization: i.customization || null,
-      price: i.custom_price ?? i.default_price,
+      price: i.custom_price ?? getBasePrice(i),
     }));
     try {
       const res = await api.post('/orders', {
@@ -529,7 +530,7 @@ export default function CustomerKiosk() {
                   <span className="text-2xl">🧋</span>
                   <div>
                     <p className="text-sm font-bold leading-tight text-stone-800">{item.name}</p>
-                    <p className="text-xs font-medium text-stone-500">${parseFloat(item.default_price).toFixed(2)}</p>
+                    <p className="text-xs font-medium text-stone-500">${getBasePrice(item).toFixed(2)}</p>
                   </div>
                 </button>
               ))}
@@ -572,7 +573,7 @@ export default function CustomerKiosk() {
                     {item.name}
                   </span>
                   <span className="mt-auto pt-2 text-base font-semibold text-stone-500">
-                    ${parseFloat(item.default_price).toFixed(2)}
+                    ${getBasePrice(item).toFixed(2)}
                   </span>
                 </div>
               </button>
@@ -602,7 +603,7 @@ export default function CustomerKiosk() {
                 <div key={item.unique_id} className="flex flex-col rounded-xl border border-stone-100 bg-stone-50 p-3">
                   <div className="flex justify-between items-start font-bold text-stone-800 text-[14px]">
                     <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
-                    <span>${(item.custom_price ?? parseFloat(item.default_price)).toFixed(2)}</span>
+                    <span>${(item.custom_price ?? getBasePrice(item)).toFixed(2)}</span>
                   </div>
                   {item.customization && (
                     <div className="text-xs text-stone-400 mt-1 leading-relaxed">
@@ -768,7 +769,7 @@ export default function CustomerKiosk() {
                 onClick={handleCustomizationConfirm}
                 className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
               >
-                Add — <span className="tabular-nums">${(parseFloat(customizingItem.default_price) + selectedToppings.length * 0.50).toFixed(2)}</span>
+                Add — <span className="tabular-nums">${(getBasePrice(customizingItem) + selectedToppings.length * 0.50).toFixed(2)}</span>
               </button>
             </div>
           </div>

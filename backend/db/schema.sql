@@ -54,6 +54,7 @@ CREATE TABLE menu_items (
     description TEXT,
     category VARCHAR(100), -- 'Milk Tea', 'Fruit Tea', 'Slush'
     default_price DECIMAL(10,2) NOT NULL,
+    discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0 CHECK (discount_percent >= 0 AND discount_percent <= 100),
     image_url VARCHAR(255),
     is_available BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

@@ -47,6 +47,20 @@ export default function Manager() {
   const [orderHistory, setOrderHistory] = useState([]);
   const [orderHistoryLoading, setOrderHistoryLoading] = useState(false);
   const [orderHistoryError, setOrderHistoryError] = useState(null);
+  const [menuCatalog, setMenuCatalog] = useState([]);
+  const [menuLoading, setMenuLoading] = useState(false);
+  const [menuError, setMenuError] = useState(null);
+  const [menuSavingId, setMenuSavingId] = useState(null);
+  const [menuDrafts, setMenuDrafts] = useState({});
+  const [newItemDraft, setNewItemDraft] = useState({
+    name: '',
+    description: '',
+    category: 'Milk Tea',
+    default_price: '5.00',
+    discount_percent: '0',
+    image_url: '',
+    is_available: true,
+  });
 
   // Reports tab
   const [reportTab, setReportTab] = useState('productUsage'); // productUsage | xReport | zReport | salesReport
@@ -90,6 +104,34 @@ export default function Manager() {
       .finally(() => setOrderHistoryLoading(false));
   };
 
+  const fetchMenuCatalog = () => {
+    setMenuLoading(true);
+    setMenuError(null);
+    api
+      .get('/menu/all')
+      .then((res) => {
+        const rows = Array.isArray(res.data) ? res.data : [];
+        setMenuCatalog(rows);
+        const nextDrafts = {};
+        for (const row of rows) {
+          nextDrafts[row.id] = {
+            name: row.name || '',
+            description: row.description || '',
+            category: row.category || '',
+            default_price: String(Number(row.default_price || 0).toFixed(2)),
+            discount_percent: String(Number(row.discount_percent || 0).toFixed(2)),
+            image_url: row.image_url || '',
+            is_available: Boolean(row.is_available),
+          };
+        }
+        setMenuDrafts(nextDrafts);
+      })
+      .catch((err) => {
+        setMenuError(err.response?.data?.error || err.message || 'Failed to load menu catalog');
+      })
+      .finally(() => setMenuLoading(false));
+  };
+
   useEffect(() => {
     if (!user || activeTab !== 'inventory') return;
     fetchInventory();
@@ -102,6 +144,11 @@ export default function Manager() {
     fetchOrderHistory();
     const id = window.setInterval(fetchOrderHistory, 5000);
     return () => window.clearInterval(id);
+  }, [user, activeTab]);
+
+  useEffect(() => {
+    if (!user || activeTab !== 'menu') return;
+    fetchMenuCatalog();
   }, [user, activeTab]);
 
   useEffect(() => {
@@ -206,6 +253,84 @@ export default function Manager() {
         setFeedback('Z-report generated.');
       })
       .catch(setModalError);
+  };
+
+  const updateMenuDraft = (id, field, value) => {
+    setMenuDrafts((prev) => ({
+      ...prev,
+      [id]: { ...(prev[id] || {}), [field]: value },
+    }));
+  };
+
+  const saveMenuItem = async (id) => {
+    const draft = menuDrafts[id];
+    if (!draft) return;
+    setMenuSavingId(id);
+    try {
+      await api.put(`/menu/${id}`, {
+        name: String(draft.name || '').trim(),
+        description: draft.description || '',
+        category: draft.category || '',
+        default_price: Number(draft.default_price || 0),
+        discount_percent: Number(draft.discount_percent || 0),
+        image_url: draft.image_url || '',
+        is_available: Boolean(draft.is_available),
+      });
+      await fetchMenuCatalog();
+      setFeedback(`Saved menu item #${id}.`);
+    } catch (err) {
+      setMenuError(err.response?.data?.error || err.message || 'Failed to save menu item');
+    } finally {
+      setMenuSavingId(null);
+    }
+  };
+
+  const removeMenuItem = async (id) => {
+    const row = menuCatalog.find((x) => x.id === id);
+    const label = row?.name ? `"${row.name}"` : `#${id}`;
+    const ok = window.confirm(`Remove ${label} from active kiosk/cashier menu?`);
+    if (!ok) return;
+
+    setMenuSavingId(id);
+    try {
+      await api.delete(`/menu/${id}`);
+      await fetchMenuCatalog();
+      setFeedback(`Removed menu item ${label} from active menu.`);
+    } catch (err) {
+      setMenuError(err.response?.data?.error || err.message || 'Failed to remove menu item');
+    } finally {
+      setMenuSavingId(null);
+    }
+  };
+
+  const createMenuItem = async () => {
+    setMenuSavingId('new');
+    try {
+      await api.post('/menu', {
+        name: String(newItemDraft.name || '').trim(),
+        description: newItemDraft.description || '',
+        category: newItemDraft.category || '',
+        default_price: Number(newItemDraft.default_price || 0),
+        discount_percent: Number(newItemDraft.discount_percent || 0),
+        image_url: newItemDraft.image_url || '',
+        is_available: Boolean(newItemDraft.is_available),
+      });
+      setNewItemDraft({
+        name: '',
+        description: '',
+        category: 'Milk Tea',
+        default_price: '5.00',
+        discount_percent: '0',
+        image_url: '',
+        is_available: true,
+      });
+      await fetchMenuCatalog();
+      setFeedback('Added new menu item.');
+    } catch (err) {
+      setMenuError(err.response?.data?.error || err.message || 'Failed to add menu item');
+    } finally {
+      setMenuSavingId(null);
+    }
   };
 
   if (!user) {
@@ -472,8 +597,182 @@ export default function Manager() {
 
           {activeTab === 'menu' && (
             <>
-              <h2 className="text-2xl font-semibold mb-4 text-gray-800">Menu Items</h2>
-              <p className="text-gray-500">Menu editing and pricing tools will be expanded in a later sprint.</p>
+              <div className="mb-5 flex items-center justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold text-gray-800">Menu Items & Pricing</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Changes here affect what customers see in kiosk/cashier (name, price, discount, availability, image).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={fetchMenuCatalog}
+                  className="rounded-lg border border-teal-200 bg-white px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              {menuError && <p className="text-red-600 mb-4">{menuError}</p>}
+              {menuLoading && <p className="text-gray-500 mb-4">Loading menu catalog…</p>}
+
+              <section className="mb-6 rounded-xl border border-gray-200 p-4">
+                <h3 className="font-semibold text-gray-800 mb-3">Add Menu Item</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                  <input
+                    type="text"
+                    placeholder="Name"
+                    value={newItemDraft.name}
+                    onChange={(e) => setNewItemDraft((d) => ({ ...d, name: e.target.value }))}
+                    className="rounded border border-gray-200 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Category"
+                    value={newItemDraft.category}
+                    onChange={(e) => setNewItemDraft((d) => ({ ...d, category: e.target.value }))}
+                    className="rounded border border-gray-200 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Base price"
+                    value={newItemDraft.default_price}
+                    onChange={(e) => setNewItemDraft((d) => ({ ...d, default_price: e.target.value }))}
+                    className="rounded border border-gray-200 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    placeholder="Discount %"
+                    value={newItemDraft.discount_percent}
+                    onChange={(e) => setNewItemDraft((d) => ({ ...d, discount_percent: e.target.value }))}
+                    className="rounded border border-gray-200 px-3 py-2 text-sm"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Image URL (optional)"
+                    value={newItemDraft.image_url}
+                    onChange={(e) => setNewItemDraft((d) => ({ ...d, image_url: e.target.value }))}
+                    className="rounded border border-gray-200 px-3 py-2 text-sm md:col-span-2"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Description"
+                    value={newItemDraft.description}
+                    onChange={(e) => setNewItemDraft((d) => ({ ...d, description: e.target.value }))}
+                    className="rounded border border-gray-200 px-3 py-2 text-sm md:col-span-2"
+                  />
+                </div>
+                <label className="mt-3 inline-flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={newItemDraft.is_available}
+                    onChange={(e) => setNewItemDraft((d) => ({ ...d, is_available: e.target.checked }))}
+                  />
+                  Available
+                </label>
+                <div className="mt-3">
+                  <button
+                    type="button"
+                    onClick={createMenuItem}
+                    disabled={menuSavingId === 'new'}
+                    className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600 disabled:opacity-60"
+                  >
+                    {menuSavingId === 'new' ? 'Adding…' : 'Add Item'}
+                  </button>
+                </div>
+              </section>
+
+              <section className="space-y-3">
+                {menuCatalog.map((item) => {
+                  const draft = menuDrafts[item.id] || {};
+                  const base = Number(draft.default_price || 0);
+                  const discount = Number(draft.discount_percent || 0);
+                  const effective = Math.max(0, base * (1 - discount / 100));
+                  return (
+                    <div key={item.id} className="rounded-xl border border-gray-200 p-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <input
+                          type="text"
+                          value={draft.name || ''}
+                          onChange={(e) => updateMenuDraft(item.id, 'name', e.target.value)}
+                          className="rounded border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="text"
+                          value={draft.category || ''}
+                          onChange={(e) => updateMenuDraft(item.id, 'category', e.target.value)}
+                          className="rounded border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={draft.default_price || '0'}
+                          onChange={(e) => updateMenuDraft(item.id, 'default_price', e.target.value)}
+                          className="rounded border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="0.01"
+                          value={draft.discount_percent || '0'}
+                          onChange={(e) => updateMenuDraft(item.id, 'discount_percent', e.target.value)}
+                          className="rounded border border-gray-200 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="text"
+                          value={draft.image_url || ''}
+                          onChange={(e) => updateMenuDraft(item.id, 'image_url', e.target.value)}
+                          placeholder="Image URL"
+                          className="rounded border border-gray-200 px-3 py-2 text-sm md:col-span-2"
+                        />
+                        <input
+                          type="text"
+                          value={draft.description || ''}
+                          onChange={(e) => updateMenuDraft(item.id, 'description', e.target.value)}
+                          placeholder="Description"
+                          className="rounded border border-gray-200 px-3 py-2 text-sm md:col-span-2"
+                        />
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-4">
+                        <label className="inline-flex items-center gap-2 text-sm text-gray-700">
+                          <input
+                            type="checkbox"
+                            checked={Boolean(draft.is_available)}
+                            onChange={(e) => updateMenuDraft(item.id, 'is_available', e.target.checked)}
+                          />
+                          Available
+                        </label>
+                        <p className="text-sm text-gray-600">
+                          Effective price: <span className="font-semibold text-gray-900">{formatCurrency(effective)}</span>
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => saveMenuItem(item.id)}
+                          disabled={menuSavingId === item.id}
+                          className="rounded bg-teal-700 px-4 py-2 text-sm font-bold text-white hover:bg-teal-600 disabled:opacity-60"
+                        >
+                          {menuSavingId === item.id ? 'Saving…' : 'Save'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeMenuItem(item.id)}
+                          disabled={menuSavingId === item.id}
+                          className="rounded bg-red-600 px-4 py-2 text-sm font-bold text-white hover:bg-red-500 disabled:opacity-60"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
             </>
           )}
 
@@ -766,15 +1065,28 @@ export default function Manager() {
 
               <div className="space-y-3">
                 <p className="text-gray-800 font-bold">Payment methods</p>
-                <DonutChart
-                  data={(modal.data?.paymentMethods || []).map((pm) => ({
-                    name: pm.methodName,
-                    value: pm.totalAmount,
-                  }))}
-                />
-                <p className="text-sm text-gray-600">
-                  (Payment breakdown isn’t stored in Project 3, so Z-report uses a single “Unspecified” slice.)
-                </p>
+                {(() => {
+                  const methods = modal.data?.paymentMethods || [];
+                  if (methods.length <= 1) {
+                    const amount = Number(methods[0]?.totalAmount || modal.data?.salesTotal || 0);
+                    return (
+                      <div className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+                        <p className="text-sm text-gray-700 font-semibold">Unspecified: {formatCurrency(amount)}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          Payment type detail is not captured yet, so Z-report shows one aggregate bucket.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <DonutChart
+                      data={methods.map((pm) => ({
+                        name: pm.methodName,
+                        value: pm.totalAmount,
+                      }))}
+                    />
+                  );
+                })()}
               </div>
             </div>
           </>

@@ -43,8 +43,182 @@ function normalizeOrderItems(rawItems) {
 // Get all menu items
 router.get('/menu', async (req, res) => {
     try {
-        const result = await db.query('SELECT * FROM menu_items WHERE is_available = TRUE');
+        const result = await db.query(`
+            SELECT
+                id,
+                name,
+                description,
+                category,
+                default_price,
+                discount_percent,
+                ROUND(default_price * (1 - discount_percent / 100.0), 2) AS effective_price,
+                image_url,
+                is_available,
+                created_at
+            FROM menu_items
+            WHERE is_available = TRUE
+            ORDER BY category, name
+        `);
         res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Manager menu catalog (includes unavailable items)
+router.get('/menu/all', async (req, res) => {
+    try {
+        const result = await db.query(`
+            SELECT
+                id,
+                name,
+                description,
+                category,
+                default_price,
+                discount_percent,
+                ROUND(default_price * (1 - discount_percent / 100.0), 2) AS effective_price,
+                image_url,
+                is_available,
+                created_at
+            FROM menu_items
+            ORDER BY category, name
+        `);
+        res.json(result.rows);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.post('/menu', async (req, res) => {
+    try {
+        const {
+            name,
+            description,
+            category,
+            default_price,
+            discount_percent = 0,
+            image_url,
+            is_available = true,
+        } = req.body || {};
+
+        const cleanName = String(name || '').trim();
+        if (!cleanName) return res.status(400).json({ error: 'Name is required.' });
+
+        const price = Number(default_price);
+        if (!Number.isFinite(price) || price < 0) {
+            return res.status(400).json({ error: 'default_price must be a non-negative number.' });
+        }
+
+        const discount = Number(discount_percent || 0);
+        if (!Number.isFinite(discount) || discount < 0 || discount > 100) {
+            return res.status(400).json({ error: 'discount_percent must be between 0 and 100.' });
+        }
+
+        const result = await db.query(
+            `
+            INSERT INTO menu_items
+            (name, description, category, default_price, discount_percent, image_url, is_available)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING *
+            `,
+            [
+                cleanName,
+                description ? String(description) : null,
+                category ? String(category) : null,
+                price,
+                discount,
+                image_url ? String(image_url) : null,
+                Boolean(is_available),
+            ]
+        );
+
+        res.status(201).json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+router.put('/menu/:id', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid menu item id.' });
+
+        const existingRes = await db.query('SELECT * FROM menu_items WHERE id = $1', [id]);
+        if (existingRes.rows.length === 0) return res.status(404).json({ error: 'Menu item not found.' });
+        const existing = existingRes.rows[0];
+
+        const name = req.body?.name !== undefined ? String(req.body.name).trim() : existing.name;
+        if (!name) return res.status(400).json({ error: 'Name cannot be empty.' });
+
+        const defaultPriceRaw = req.body?.default_price !== undefined ? req.body.default_price : existing.default_price;
+        const defaultPrice = Number(defaultPriceRaw);
+        if (!Number.isFinite(defaultPrice) || defaultPrice < 0) {
+            return res.status(400).json({ error: 'default_price must be a non-negative number.' });
+        }
+
+        const discountRaw = req.body?.discount_percent !== undefined ? req.body.discount_percent : existing.discount_percent;
+        const discountPercent = Number(discountRaw || 0);
+        if (!Number.isFinite(discountPercent) || discountPercent < 0 || discountPercent > 100) {
+            return res.status(400).json({ error: 'discount_percent must be between 0 and 100.' });
+        }
+
+        const result = await db.query(
+            `
+            UPDATE menu_items
+            SET
+                name = $1,
+                description = $2,
+                category = $3,
+                default_price = $4,
+                discount_percent = $5,
+                image_url = $6,
+                is_available = $7
+            WHERE id = $8
+            RETURNING *
+            `,
+            [
+                name,
+                req.body?.description !== undefined ? (req.body.description ? String(req.body.description) : null) : existing.description,
+                req.body?.category !== undefined ? (req.body.category ? String(req.body.category) : null) : existing.category,
+                defaultPrice,
+                discountPercent,
+                req.body?.image_url !== undefined ? (req.body.image_url ? String(req.body.image_url) : null) : existing.image_url,
+                req.body?.is_available !== undefined ? Boolean(req.body.is_available) : existing.is_available,
+                id,
+            ]
+        );
+
+        res.json(result.rows[0]);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// Remove a menu item from customer-facing menus (soft delete).
+// Keeps historical order/report integrity by preserving the row.
+router.delete('/menu/:id', async (req, res) => {
+    try {
+        const id = Number(req.params.id);
+        if (!Number.isFinite(id)) return res.status(400).json({ error: 'Invalid menu item id.' });
+
+        const result = await db.query(
+            `
+            UPDATE menu_items
+            SET is_available = FALSE
+            WHERE id = $1
+            RETURNING id, name, is_available
+            `,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ error: 'Menu item not found.' });
+        }
+
+        res.json({
+            message: 'Menu item removed from active menu.',
+            item: result.rows[0],
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -201,7 +375,7 @@ router.get('/orders/history', async (req, res) => {
                     json_agg(
                         json_build_object(
                             'menu_item_id', oi.menu_item_id,
-                            'item_name', mi.name,
+                            'item_name', COALESCE(mi.name, CONCAT('Item #', oi.menu_item_id)),
                             'quantity', oi.quantity,
                             'price_at_time', oi.price_at_time,
                             'customization', oi.customization
@@ -416,14 +590,14 @@ router.get('/reports/sales-by-item', async (req, res) => {
 
         const sql = `
             SELECT
-                mi.name AS item_name,
+                COALESCE(mi.name, CONCAT('Item #', ti.ProductID::text)) AS item_name,
                 COALESCE(SUM(ti.Quantity), 0) AS qty_sold,
                 COALESCE(SUM(ti.Quantity * ti.PriceAtPurchase), 0) AS revenue
             FROM TransactionItem ti
             JOIN "Transaction" t ON t.TransactionID = ti.TransactionID
-            JOIN menu_items mi ON mi.id = ti.ProductID
+            LEFT JOIN menu_items mi ON mi.id = ti.ProductID
             WHERE t.TransactionTimestamp >= $1 AND t.TransactionTimestamp < $2
-            GROUP BY mi.id, mi.name
+            GROUP BY ti.ProductID, mi.name
             ORDER BY revenue DESC, mi.name
         `;
 
