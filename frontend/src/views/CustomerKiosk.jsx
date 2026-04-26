@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { GoogleLogin } from '@react-oauth/google';
-import api, { CUSTOMER_SESSION_STORAGE_KEY } from '../api';
+import api, {
+  CUSTOMER_SESSION_STORAGE_KEY,
+  CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
+} from '../api';
 
 const KIOSK_CASHIER_ID = 3;
 
@@ -36,11 +39,6 @@ function defaultKioskCopy() {
     signOut: 'Sign out',
     endSession: 'End session',
     signedInAs: 'Signed in',
-    orderSuccessTitle: "You're all set!",
-    orderSuccessLead: 'Your order was placed successfully.',
-    orderSuccessThankYou: 'Thank you',
-    orderSuccessOrderLabel: 'Order number',
-    orderSuccessCta: 'Start new order',
   };
 }
 
@@ -56,10 +54,8 @@ export default function CustomerKiosk() {
   const [ice, setIce] = useState('Regular');
   const [selectedToppings, setSelectedToppings] = useState([]);
   const [cart, setCart] = useState([]);
-  const [orderSuccess, setOrderSuccess] = useState(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const orderSuccessCtaRef = useRef(null);
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
@@ -100,25 +96,6 @@ export default function CustomerKiosk() {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chatLog, isChatting]);
-
-  useEffect(() => {
-    if (!orderSuccess) return;
-    orderSuccessCtaRef.current?.focus();
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOrderSuccess(null);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [orderSuccess]);
-
-  useEffect(() => {
-    if (!orderSuccess) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [orderSuccess]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -216,19 +193,19 @@ export default function CustomerKiosk() {
 
   const handleLogout = () => {
     localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+    sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
     setSessionUser(null);
     setCart([]);
     setMenuItems([]);
-    setOrderSuccess(null);
     setLanguage('en');
     setCopy(defaultKioskCopy());
   };
 
   const handleContinueAsGuest = () => {
     localStorage.removeItem(CUSTOMER_SESSION_STORAGE_KEY);
+    sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
     setSessionUser({ isGuest: true, name: 'Guest' });
     setCart([]);
-    setOrderSuccess(null);
   };
 
   const handleTranslateToggle = async () => {
@@ -249,11 +226,6 @@ export default function CustomerKiosk() {
           'stepPay',
           'emptyCart',
           'assistantHint',
-          'orderSuccessTitle',
-          'orderSuccessLead',
-          'orderSuccessThankYou',
-          'orderSuccessOrderLabel',
-          'orderSuccessCta',
         ];
         const translated = await Promise.all(keys.map((k) => translateText(copy[k], 'es')));
         const nextCopy = keys.reduce((acc, k, i) => ({ ...acc, [k]: translated[i] }), {});
@@ -376,7 +348,17 @@ export default function CustomerKiosk() {
 
   const processPayment = async () => {
     setCheckoutLoading(true);
-    const total_amount = cartTotal * 1.0825;
+    const subtotal = cartTotal;
+    const tax = subtotal * 0.0825;
+    const total_amount = subtotal + tax;
+    const orderSnapshot = cart.map((i) => ({
+      id: i.unique_id ?? i.id,
+      name: i.name,
+      quantity: i.quantity,
+      customization: i.customization || null,
+      unitPrice: Number(i.custom_price ?? getBasePrice(i)),
+      lineTotal: Number(i.custom_price ?? getBasePrice(i)) * i.quantity,
+    }));
     const formattedItems = cart.map((i) => ({
       menu_item_id: i.id,
       quantity: i.quantity,
@@ -390,9 +372,32 @@ export default function CustomerKiosk() {
         items: formattedItems,
         placed_via: 'customer_kiosk',
       });
-      setOrderSuccess({ orderId: res.data.id });
+
+      const confirmationOrder = {
+        orderId: res.data.id,
+        orderNumber: res.data.orderNumber,
+        items: orderSnapshot,
+        itemCount: cart.reduce((n, line) => n + line.quantity, 0),
+        subtotal,
+        tax,
+        total: total_amount,
+        pointsEarned: res.data.pointsEarned || 0,
+        rewardsBalance: res.data.rewardsBalance,
+        freeBobaCount: res.data.freeBobaCount ?? 0,
+        pointsToNextFreeBoba: res.data.pointsToNextFreeBoba ?? 5,
+        isGuest: !!sessionUser?.isGuest,
+      };
+
+      sessionStorage.setItem(
+        CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
+        JSON.stringify(confirmationOrder)
+      );
+
       setCart([]);
       setPaymentModalOpen(false);
+      navigate('/customer/confirmation', {
+        state: { order: confirmationOrder },
+      });
     } catch (err) {
       const status = err.response?.status;
       const target = language === 'es' ? 'es' : 'en';
@@ -802,32 +807,6 @@ export default function CustomerKiosk() {
               className="mt-6 text-sm font-bold text-slate-400 hover:text-slate-600 transition"
             >
               Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Order Success Modal */}
-      {orderSuccess && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-md">
-          <div className="w-full max-w-sm rounded-3xl bg-white p-8 shadow-2xl text-center overflow-hidden relative">
-            <div className="absolute inset-x-0 top-0 h-2 bg-green-400"></div>
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100 text-green-500 text-3xl mb-6 shadow-inner">
-              {'\u2713'}
-            </div>
-            <h2 className="text-3xl font-black text-slate-900 mb-2">{copy.orderSuccessTitle}</h2>
-            <p className="text-slate-500 font-medium mb-6">{copy.orderSuccessLead}</p>
-            
-            <div className="bg-slate-50 rounded-xl py-4 mb-6 border border-slate-100">
-               <p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Order Number</p>
-               <p className="text-4xl font-black text-slate-800">#{orderSuccess.orderId}</p>
-            </div>
-            
-            <button
-              onClick={() => setOrderSuccess(null)}
-              className="w-full rounded-2xl bg-green-500 py-4 text-lg font-bold text-white shadow-sm transition hover:bg-green-600 active:scale-[0.98]"
-            >
-              Start New Order
             </button>
           </div>
         </div>
