@@ -61,6 +61,7 @@ export default function CustomerKiosk() {
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
+  const [rewards, setRewards] = useState(null);
 
   const [chatOpen, setChatOpen] = useState(false);
   const [chatLog, setChatLog] = useState([]);
@@ -185,6 +186,7 @@ export default function CustomerKiosk() {
     setMenuItems([]);
     setLanguage('en');
     setCopy(defaultKioskCopy());
+    setRewards(null);
   };
 
   const handleContinueAsGuest = () => {
@@ -598,6 +600,19 @@ export default function CustomerKiosk() {
             {itemCount} {itemCount === 1 ? 'item' : 'items'}
           </span>
         </div>
+        {!sessionUser?.isGuest && rewards && (
+          <div className="mx-5 mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Rewards</p>
+            <p className="mt-1 text-xl font-black text-emerald-900">
+              {Number(rewards.points_balance || 0)} pts
+            </p>
+            <p className="text-xs text-emerald-800">
+              {Number(rewards.points_to_next_reward || 0) === 0
+                ? 'Reward unlocked! Ask cashier to redeem.'
+                : `${Number(rewards.points_to_next_reward || 0)} pts to next reward`}
+            </p>
+          </div>
+        )}
 
         <div className="flex-1 overflow-y-auto px-5 py-4 relative">
           {cart.length === 0 ? (

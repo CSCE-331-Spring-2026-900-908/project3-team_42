@@ -37,7 +37,6 @@ export default function AccessibilityPanel() {
   const content = (
     <div className="a11y-ui">
       <button
-        ref={triggerRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
         className="pointer-events-auto fixed left-6 bottom-6 z-[1] flex h-14 w-14 items-center justify-center rounded-full border-2 border-stone-400 bg-white text-xl shadow-xl transition hover:bg-violet-50 focus:outline-none focus-visible:ring-4 focus-visible:ring-violet-500"
@@ -62,7 +61,7 @@ export default function AccessibilityPanel() {
             <h2 className="text-lg font-bold text-stone-900">Accessibility</h2>
             <button
               type="button"
-              onClick={closePanel}
+              onClick={() => setOpen(false)}
               className="flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-lg p-2 text-stone-500 hover:bg-stone-100 hover:text-stone-900"
               aria-label="Close accessibility panel"
             >
