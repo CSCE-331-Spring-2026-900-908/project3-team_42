@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { setActivePortalPath } from '../lib/portalLock';
 
 const modes = [
   {
@@ -76,6 +77,8 @@ export default function Portal() {
             <Link
               key={m.to}
               to={m.to}
+              replace
+              onClick={() => setActivePortalPath(m.to)}
               className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br p-8 text-white shadow-lg shadow-stone-900/10 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-stone-900/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fffbf7] ${m.gradient}`}
             >
               <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-2xl transition group-hover:bg-white/15" aria-hidden="true" />
