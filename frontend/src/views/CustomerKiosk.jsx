@@ -3,10 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { loadActiveKioskCart, saveActiveKioskCart } from '../lib/kioskCart';
 
+const LANGUAGE_OPTIONS = [
+  { code: 'en', label: 'English (Default)' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'zh-CN', label: 'Chinese (Simplified)' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'pt', label: 'Portuguese' },
+];
+
 function defaultKioskCopy() {
   return {
     welcome: 'Welcome to Reveille Boba',
-    translateBtn: 'Translate to Spanish',
+    translateBtn: 'Translate',
+    subtitle: 'Pick your favorite drink',
     addToOrder: 'Add to order',
     total: 'Total',
     checkout: 'Checkout',
@@ -23,6 +35,7 @@ export default function CustomerKiosk() {
   const navigate = useNavigate();
 
   const [menuItems, setMenuItems] = useState([]);
+  const [baseMenuItems, setBaseMenuItems] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [customizingItem, setCustomizingItem] = useState(null);
   const [sweetness, setSweetness] = useState('Normal 100%');
@@ -39,12 +52,17 @@ export default function CustomerKiosk() {
   const [isChatting, setIsChatting] = useState(false);
   const chatEndRef = useRef(null);
   const chatPanelRef = useRef(null);
+  const translateMenuRef = useRef(null);
+  const [translateMenuOpen, setTranslateMenuOpen] = useState(false);
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
   const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
 
   useEffect(() => {
-    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    api.get('/menu').then((res) => {
+      setMenuItems(res.data);
+      setBaseMenuItems(res.data);
+    }).catch(console.error);
     api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
   }, []);
 
@@ -63,6 +81,15 @@ export default function CustomerKiosk() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [chatOpen]);
+
+  useEffect(() => {
+    const onPointerDown = (e) => {
+      if (!translateMenuRef.current) return;
+      if (!translateMenuRef.current.contains(e.target)) setTranslateMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
 
   const getChatFocusable = useCallback(() => {
     if (!chatPanelRef.current) return [];
@@ -139,15 +166,21 @@ export default function CustomerKiosk() {
     }
   };
 
-  const handleTranslateToggle = async () => {
-    if (isTranslating) return;
+  const handleLanguageSelect = async (targetLang) => {
+    if (isTranslating || !targetLang || targetLang === language) {
+      setTranslateMenuOpen(false);
+      return;
+    }
     setIsTranslating(true);
-    const targetLang = language === 'en' ? 'es' : 'en';
+    setTranslateMenuOpen(false);
 
-    if (targetLang === 'es') {
+    const baseCopy = defaultKioskCopy();
+
+    if (targetLang !== 'en') {
       try {
         const keys = [
           'welcome',
+          'subtitle',
           'addToOrder',
           'total',
           'checkout',
@@ -158,15 +191,15 @@ export default function CustomerKiosk() {
           'emptyCart',
           'assistantHint',
         ];
-        const translated = await Promise.all(keys.map((k) => translateText(copy[k], 'es')));
+        const translated = await Promise.all(keys.map((k) => translateText(baseCopy[k], targetLang)));
         const nextCopy = keys.reduce((acc, k, i) => ({ ...acc, [k]: translated[i] }), {});
-        setCopy((c) => ({ ...c, ...nextCopy, translateBtn: 'Traducir al Ingles' }));
+        setCopy((c) => ({ ...c, ...nextCopy }));
 
         const translatedMenu = await Promise.all(
-          menuItems.map(async (item) => ({
+          baseMenuItems.map(async (item) => ({
             ...item,
-            name: await translateText(item.name, 'es'),
-            description: await translateText(item.description, 'es'),
+            name: await translateText(item.name, targetLang),
+            description: await translateText(item.description, targetLang),
           }))
         );
         setMenuItems(translatedMenu);
@@ -174,9 +207,8 @@ export default function CustomerKiosk() {
         console.error('Translation failed', err);
       }
     } else {
-      const res = await api.get('/menu');
-      setMenuItems(res.data);
-      setCopy(defaultKioskCopy());
+      setMenuItems(baseMenuItems);
+      setCopy(baseCopy);
     }
 
     setLanguage(targetLang);
@@ -312,13 +344,34 @@ export default function CustomerKiosk() {
             </button>
             <div>
               <h2 className="text-3xl font-extrabold text-stone-900 tracking-tight">{copy.welcome}</h2>
-              <p className="text-sm text-stone-500 mt-0.5">{language === 'es' ? 'Elige tu bebida favorita' : 'Pick your favorite drink'}</p>
+              <p className="text-sm text-stone-500 mt-0.5">{copy.subtitle}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={handleTranslateToggle} disabled={isTranslating} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-50">
-              {isTranslating ? '...' : (language === 'es' ? 'English' : 'Espanol')}
+          <div className="relative" ref={translateMenuRef}>
+            <button
+              type="button"
+              onClick={() => setTranslateMenuOpen((v) => !v)}
+              disabled={isTranslating}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-600 disabled:opacity-60"
+            >
+              <span className="text-xs">A+</span>
+              <span>{isTranslating ? 'Translating...' : 'Translate'}</span>
+              <span className={`text-xs transition ${translateMenuOpen ? 'rotate-180' : ''}`}>^</span>
             </button>
+            {translateMenuOpen && (
+              <div className="absolute right-0 z-40 mt-2 max-h-72 w-56 overflow-y-auto rounded-xl border border-stone-200 bg-white py-1 shadow-lg">
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.code}
+                    type="button"
+                    onClick={() => handleLanguageSelect(opt.code)}
+                    className={`block w-full px-4 py-2 text-left text-sm transition hover:bg-stone-50 ${opt.code === language ? 'font-semibold text-blue-700' : 'text-stone-700'}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </header>
 
