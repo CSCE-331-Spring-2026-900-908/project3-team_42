@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { GoogleLogin } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import Modal from '../components/manager/Modal';
+import { clearActivePortalPath } from '../lib/portalLock';
 import {
   DonutChart,
   HorizontalBarChart,
@@ -37,7 +37,6 @@ function formatDateTime(value) {
 }
 
 export default function Manager() {
-  const navigate = useNavigate();
   const todayStr = useMemo(() => toISODate(new Date()), []);
   const defaultFrom = useMemo(() => daysAgoStr(7), []);
   const [user, setUser] = useState(null);
@@ -88,7 +87,7 @@ export default function Manager() {
   const [laborLoading, setLaborLoading] = useState(false);
   const [laborError, setLaborError] = useState(null);
   const [inventoryAlerts, setInventoryAlerts] = useState({ now: [], soon: [], all: [] });
-  const [inventoryAdjustments, setInventoryAdjustments] = useState([]);
+  const [_inventoryAdjustments, setInventoryAdjustments] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
   const [purchaseOrders, setPurchaseOrders] = useState([]);
   const [operationsError, setOperationsError] = useState(null);
@@ -770,15 +769,6 @@ export default function Manager() {
     <div className="min-h-screen bg-slate-50 flex flex-col items-center">
       <header className="bg-white border-b border-stone-200 text-stone-900 w-full p-4 shadow-sm flex justify-between items-center px-8">
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => navigate(-1)} 
-            className="p-2 hover:bg-stone-100 rounded transition"
-            aria-label="Back"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-          </button>
           <h1 className="text-2xl font-black tracking-tight">Manager Dashboard</h1>
         </div>
         <div className="flex items-center space-x-6">
@@ -787,7 +777,10 @@ export default function Manager() {
             <span className="text-stone-600 font-medium">Welcome, {user.name}</span>
           </div>
           <button
-            onClick={() => setUser(null)}
+            onClick={() => {
+              clearActivePortalPath();
+              setUser(null);
+            }}
             className="hover:bg-stone-100 px-4 py-2 rounded-lg font-semibold bg-white shadow-sm border border-stone-200 transition text-stone-700 text-sm"
           >
             Logout

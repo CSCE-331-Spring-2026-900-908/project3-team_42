@@ -400,15 +400,6 @@ export default function CustomerKiosk() {
         {/* Top Bar */}
         <header className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/')}
-              className="flex items-center justify-center p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
-              aria-label="Back"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-            </button>
             <div>
               <h2 className="text-3xl font-extrabold text-stone-900 tracking-tight">{copy.welcome}</h2>
               <p className="text-sm text-stone-500 mt-0.5">{copy.subtitle}</p>

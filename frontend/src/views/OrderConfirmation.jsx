@@ -159,7 +159,7 @@ export default function OrderConfirmation() {
                     Earn points on your next boba.
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-stone-600">
-                    Sign in with Google and you'll start earning {' '}
+                    Enter your name and email at checkout next time to start earning {' '}
                     <span className="font-semibold text-stone-900">1 point per drink</span>. Every {BOBAS_PER_FREE_REWARD} points = 1 free boba.
                   </p>
 
@@ -170,11 +170,11 @@ export default function OrderConfirmation() {
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />
-                      Pick up where you left off on any device
+                      Keep your progress tied to your email
                     </li>
                     <li className="flex items-start gap-2">
                       <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />
-                      One tap — no password to remember
+                      No password needed for kiosk rewards
                     </li>
                   </ul>
                 </div>
@@ -184,7 +184,7 @@ export default function OrderConfirmation() {
                   onClick={handleStartNewOrder}
                   className="mt-6 w-full rounded-2xl bg-stone-900 py-4 text-lg font-bold text-white transition hover:bg-stone-800 active:scale-[0.99]"
                 >
-                  Sign in & start a new order
+                  Start a new order
                 </button>
                 <p className="mt-3 text-center text-xs text-stone-400">
                   This order won't earn points, but your next one can.
