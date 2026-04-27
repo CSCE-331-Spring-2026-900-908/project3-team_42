@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api, { CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY } from '../api';
+import KioskKeyboard from '../components/KioskKeyboard';
 import { clearActiveKioskCart, loadActiveKioskCart } from '../lib/kioskCart';
 
 const KIOSK_CASHIER_ID = 3;
@@ -30,6 +31,8 @@ export default function CheckoutPage() {
   const [isGuest, setIsGuest] = useState(false);
   const [loading, setLoading] = useState(false);
   const [payModalOpen, setPayModalOpen] = useState(false);
+  const [activeTextField, setActiveTextField] = useState('email');
+  const [keyboardVisible, setKeyboardVisible] = useState(true);
 
   if (!cart || cart.length === 0) return null;
 
@@ -37,18 +40,42 @@ export default function CheckoutPage() {
   const tax = subtotal * 0.0825;
   const total = subtotal + tax;
   const itemCount = cart.reduce((n, l) => n + l.quantity, 0);
+  const hasRewardsInfo = Boolean(customerName.trim() && customerEmail.trim());
+  const activeFieldLabel = activeTextField === 'name' ? 'name' : 'email';
 
   const handleContinueAsGuest = () => {
     setIsGuest(true);
     setCustomerName('');
     setCustomerEmail('');
+    setKeyboardVisible(false);
     setPayModalOpen(true);
   };
 
   const handleRewardsSubmit = (e) => {
     e.preventDefault();
+    if (!hasRewardsInfo) return;
     setIsGuest(false);
+    setKeyboardVisible(false);
     setPayModalOpen(true);
+  };
+
+  const updateActiveField = (updater) => {
+    if (activeTextField === 'name') {
+      setCustomerName((value) => updater(value));
+      return;
+    }
+
+    setCustomerEmail((value) => updater(value));
+  };
+
+  const handleVirtualKeyPress = (key) => {
+    setIsGuest(false);
+    updateActiveField((value) => {
+      if (key === 'backspace') return value.slice(0, -1);
+      if (key === 'clear') return '';
+      if (key === 'space') return activeTextField === 'email' ? value : `${value} `;
+      return `${value}${key}`;
+    });
   };
 
   const processPayment = async () => {
@@ -112,16 +139,14 @@ export default function CheckoutPage() {
     }
   };
 
-  const hasRewardsInfo = customerName.trim() || customerEmail.trim();
-
   return (
-    <div className="flex h-screen flex-row bg-[#faf9f7] font-sans overflow-hidden text-stone-800">
+    <div className={`flex h-screen flex-row bg-[#faf9f7] font-sans overflow-hidden text-stone-800 transition-[padding] duration-300 ${keyboardVisible ? 'pb-72' : ''}`}>
 
       {/* Left — Order Summary */}
       <div className="flex flex-1 flex-col px-8 pt-7 pb-0">
         <header className="mb-6 flex items-center gap-4">
           <button
-            onClick={() => navigate('/customer')}
+            onClick={() => navigate('/customer', { replace: true })}
             className="flex items-center justify-center p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
             aria-label="Back to menu"
           >
@@ -187,6 +212,7 @@ export default function CheckoutPage() {
               id="customer-name"
               type="text"
               value={customerName}
+              onFocus={() => { setActiveTextField('name'); setKeyboardVisible(true); }}
               onChange={(e) => { setCustomerName(e.target.value); setIsGuest(false); }}
               placeholder="Your first name"
               autoComplete="given-name"
@@ -202,6 +228,7 @@ export default function CheckoutPage() {
               id="customer-email"
               type="email"
               value={customerEmail}
+              onFocus={() => { setActiveTextField('email'); setKeyboardVisible(true); }}
               onChange={(e) => { setCustomerEmail(e.target.value); setIsGuest(false); }}
               placeholder="you@gmail.com"
               autoComplete="email"
@@ -210,7 +237,7 @@ export default function CheckoutPage() {
           </div>
 
           <div className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs text-amber-800 font-medium">
-            Earn 1 point per drink. Get a free boba at 5 points!
+            Earn 1 point per drink. Name and email are required so we can track your rewards.
           </div>
 
           <button
@@ -274,6 +301,13 @@ export default function CheckoutPage() {
           </div>
         </div>
       )}
+
+      <KioskKeyboard
+        visible={keyboardVisible && !payModalOpen}
+        activeFieldLabel={activeFieldLabel}
+        onKeyPress={handleVirtualKeyPress}
+        onDone={() => setKeyboardVisible(false)}
+      />
     </div>
   );
 }

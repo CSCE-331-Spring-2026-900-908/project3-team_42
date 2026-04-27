@@ -6,7 +6,7 @@ const { tryGetCustomerIdFromAuthHeader } = require('../lib/customerSession');
 
 const TAX_RATE = 0.0825;
 const BOBAS_PER_FREE_REWARD = 5;
-const ORDER_NUMBER_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const ORDER_NUMBER_DIGITS = '0123456789';
 
 function calculateRewardPoints(items) {
     return (items || []).reduce((sum, item) => {
@@ -33,8 +33,8 @@ function buildRewardsSummary(pointsBalance) {
 function generateOrderNumber(length = 4) {
     let orderNumber = '';
     for (let index = 0; index < length; index += 1) {
-        const randomIndex = Math.floor(Math.random() * ORDER_NUMBER_ALPHABET.length);
-        orderNumber += ORDER_NUMBER_ALPHABET[randomIndex];
+        const randomIndex = Math.floor(Math.random() * ORDER_NUMBER_DIGITS.length);
+        orderNumber += ORDER_NUMBER_DIGITS[randomIndex];
     }
     return orderNumber;
 }
@@ -520,24 +520,21 @@ router.post('/orders', async (req, res) => {
     try {
         await db.query('BEGIN');
 
-        if (placed_via === 'customer_kiosk') {
-            customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
-            if (!customerAccountId && normalizedCustomerEmail) {
-                const customerResult = await db.query(
-                    `
-                    INSERT INTO customer_accounts (email, name, oauth_provider, oauth_subject)
-                    VALUES ($1, $2, 'email', $1)
-                    ON CONFLICT (email) DO UPDATE
-                    SET name = COALESCE(NULLIF(EXCLUDED.name, ''), customer_accounts.name),
-                        updated_at = CURRENT_TIMESTAMP
-                    RETURNING id, points_balance
-                    `,
-                    [normalizedCustomerEmail, normalizedCustomerName || null]
-                );
-                const customer = customerResult.rows[0];
-                customerAccountId = customer?.id ?? null;
-                rewardsBalance = customer?.points_balance ?? null;
-            }
+        if (placed_via === 'customer_kiosk' && normalizedCustomerName && normalizedCustomerEmail) {
+            const customerResult = await db.query(
+                `
+                INSERT INTO customer_accounts (email, name, oauth_provider, oauth_subject)
+                VALUES ($1, $2, 'email', $1)
+                ON CONFLICT (email) DO UPDATE
+                SET name = COALESCE(NULLIF(EXCLUDED.name, ''), customer_accounts.name),
+                    updated_at = CURRENT_TIMESTAMP
+                RETURNING id, points_balance
+                `,
+                [normalizedCustomerEmail, normalizedCustomerName]
+            );
+            const customer = customerResult.rows[0];
+            customerAccountId = customer?.id ?? null;
+            rewardsBalance = customer?.points_balance ?? null;
         }
 
         const pointsEarned = customerAccountId ? calculateRewardPoints(normalizedItems) : 0;
