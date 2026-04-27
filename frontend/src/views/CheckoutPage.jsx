@@ -176,7 +176,10 @@ export default function CheckoutPage() {
                 <p className="font-bold text-stone-800">{item.name}</p>
                 {item.customization && (
                   <p className="text-xs text-stone-400 mt-1">
-                    {item.customization.sweetness} sweetness · {item.customization.ice} ice
+                    {item.customization.sweetness} sweetness
+                    {item.customization.size && ` · Size: ${item.customization.size}`}
+                    {item.customization.hot && ' · Hot'}
+                    {` · Ice: ${item.customization.ice}`}
                     {item.customization.toppings?.length > 0 && ` · ${item.customization.toppings.join(', ')}`}
                   </p>
                 )}

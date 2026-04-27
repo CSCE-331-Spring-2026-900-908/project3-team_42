@@ -1,5 +1,12 @@
 import { useMemo, useState, useEffect } from 'react';
 import api from '../api';
+import {
+  calculateCustomizedDrinkPrice,
+  DEFAULT_ICE_LEVEL,
+  DEFAULT_SIZE_OPTION,
+  HOT_ICE_LEVEL,
+  SIZE_OPTIONS,
+} from '../lib/drinkCustomization';
 
 export default function Cashier() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -43,7 +50,9 @@ export default function Cashier() {
 
   const [customizingItem, setCustomizingItem] = useState(null);
   const [sweetness, setSweetness] = useState('100');
-  const [ice, setIce] = useState('regular ice');
+  const [ice, setIce] = useState(DEFAULT_ICE_LEVEL);
+  const [hot, setHot] = useState(false);
+  const [size, setSize] = useState(DEFAULT_SIZE_OPTION.id);
   const [toppings, setToppings] = useState([]);
 
   const TOPPING_OPTIONS = [
@@ -64,8 +73,18 @@ export default function Cashier() {
   const handleDrinkClick = (item) => {
     setCustomizingItem(item);
     setSweetness('100');
-    setIce('regular ice');
+    setIce(DEFAULT_ICE_LEVEL);
+    setHot(false);
+    setSize(DEFAULT_SIZE_OPTION.id);
     setToppings([]);
+  };
+
+  const handleHotToggle = () => {
+    setHot((value) => {
+      const next = !value;
+      if (next) setIce(HOT_ICE_LEVEL);
+      return next;
+    });
   };
 
   const toggleTopping = (id) => {
@@ -76,8 +95,11 @@ export default function Cashier() {
 
   const confirmCustomization = () => {
     const basePrice = getBasePrice(customizingItem);
-    const toppingsPrice = toppings.length * 0.50;
-    const customPrice = basePrice + toppingsPrice;
+    const customPrice = calculateCustomizedDrinkPrice({
+      basePrice,
+      toppingCount: toppings.length,
+      sizeId: size,
+    });
     
     const toppingNames = toppings
       .map((tid) => TOPPING_OPTIONS.find((o) => o.id === tid)?.name)
@@ -85,7 +107,10 @@ export default function Cashier() {
 
     const customization = {
       sweetness: `${sweetness}%`,
-      ice: ice,
+      size,
+      ice: hot ? HOT_ICE_LEVEL : ice,
+      temperature: hot ? 'Hot' : 'Cold',
+      hot,
       toppings: toppingNames
     };
 
@@ -278,7 +303,10 @@ export default function Cashier() {
                   </div>
                   {item.customization && (
                     <div className="text-xs text-slate-500 mt-1 leading-relaxed">
-                      S: {item.customization.sweetness} | I: {item.customization.ice}
+                      S: {item.customization.sweetness}
+                      {item.customization.size && ` | Size: ${item.customization.size}`}
+                      {item.customization.hot && ' | Hot'}
+                      {' | '}I: {item.customization.ice}
                       {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
                     </div>
                   )}
@@ -341,16 +369,52 @@ export default function Cashier() {
               <div>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Sweetness</h3>
                 <div className="flex flex-wrap gap-2">
-                  {['0', '25', '50', '75', '100'].map(level => (
+                  {[
+                    { value: '0', label: 'No Sugar 0%' },
+                    { value: '25', label: '25%' },
+                    { value: '50', label: '50%' },
+                    { value: '75', label: '75%' },
+                    { value: '100', label: 'Normal 100%' },
+                  ].map(({ value, label }) => (
                     <button
-                      key={level}
-                      onClick={() => setSweetness(level)}
-                      className={`min-w-[3.5rem] rounded-xl border px-3 py-2 text-sm font-bold transition ${sweetness === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                      key={value}
+                      onClick={() => setSweetness(value)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${sweetness === value ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                     >
-                      {level}%
+                      {label}
                     </button>
                   ))}
                 </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Size</h3>
+                <div className="flex flex-wrap gap-2">
+                  {SIZE_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setSize(option.id)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${size === option.id ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      {option.label}{option.upcharge > 0 ? ` +$${option.upcharge.toFixed(2)}` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Temperature</h3>
+                <button
+                  type="button"
+                  onClick={handleHotToggle}
+                  className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${hot ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                >
+                  Hot
+                </button>
+                {hot && (
+                  <p className="mt-2 text-xs font-medium text-slate-500">Hot drinks are served with no ice.</p>
+                )}
               </div>
 
               <div>
@@ -359,8 +423,10 @@ export default function Cashier() {
                   {['no ice', 'light ice', 'regular ice', 'extra ice'].map(level => (
                     <button
                       key={level}
+                      type="button"
                       onClick={() => setIce(level)}
-                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${ice === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                      disabled={hot}
+                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${ice === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'} ${hot ? 'cursor-not-allowed opacity-60' : ''}`}
                     >
                       {level.charAt(0).toUpperCase() + level.slice(1)}
                     </button>
@@ -391,7 +457,11 @@ export default function Cashier() {
                 onClick={confirmCustomization}
                 className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
               >
-                Add — <span className="tabular-nums">${(getBasePrice(customizingItem) + toppings.length * 0.50).toFixed(2)}</span>
+                Add — <span className="tabular-nums">${calculateCustomizedDrinkPrice({
+                  basePrice: getBasePrice(customizingItem),
+                  toppingCount: toppings.length,
+                  sizeId: size,
+                }).toFixed(2)}</span>
               </button>
             </div>
           </div>
