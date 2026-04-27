@@ -4,7 +4,7 @@ import api, { CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY } from '../api';
 import KioskKeyboard from '../components/KioskKeyboard';
 import { clearActiveKioskCart, loadActiveKioskCart } from '../lib/kioskCart';
 
-const KIOSK_CASHIER_ID = 3;
+const KIOSK_CASHIER_ID = 4;
 
 function getBasePrice(item) {
   return Number(item?.effective_price ?? item?.default_price ?? 0);
@@ -108,19 +108,28 @@ export default function CheckoutPage() {
       if (!isGuest && customerEmail.trim()) payload.customer_email = customerEmail.trim();
 
       const res = await api.post('/orders', payload);
+      const paidSubtotal = Number(res.data.total_amount ?? subtotal);
+      const rewardDiscountAmount = Number(res.data.rewardDiscountAmount || 0);
+      const paidTax = paidSubtotal * 0.0825;
+      const paidTotal = paidSubtotal + paidTax;
 
       const confirmationOrder = {
         orderId: res.data.id,
         orderNumber: res.data.orderNumber,
         items: orderSnapshot,
         itemCount,
-        subtotal,
-        tax,
-        total,
+        grossSubtotal: Number(res.data.gross_amount ?? subtotal),
+        subtotal: paidSubtotal,
+        tax: paidTax,
+        total: paidTotal,
+        rewardDiscountAmount,
+        redeemedRewardPoints: res.data.redeemedRewardPoints ?? 0,
+        redeemedFreeBobaCount: res.data.redeemedFreeBobaCount ?? 0,
         pointsEarned: res.data.pointsEarned || 0,
         rewardsBalance: res.data.rewardsBalance,
         freeBobaCount: res.data.freeBobaCount ?? 0,
         pointsToNextFreeBoba: res.data.pointsToNextFreeBoba ?? 5,
+        justRedeemedFreeBoba: rewardDiscountAmount > 0,
         isGuest,
       };
 

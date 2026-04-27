@@ -110,15 +110,6 @@ export default function Manager() {
     inventory_id: '',
     quantity: '',
   });
-  const [financeAdjustments, setFinanceAdjustments] = useState([]);
-  const [financeError, setFinanceError] = useState(null);
-  const [financeDraft, setFinanceDraft] = useState({
-    order_id: '',
-    transaction_id: '',
-    adjustment_type: 'refund',
-    amount: '',
-    reason: '',
-  });
   const [insightsData, setInsightsData] = useState({ lookbackDays: 30, top: [], points: [], suggestion: '' });
   const [inventoryForecast, setInventoryForecast] = useState({ lookbackDays: 30, points: [], atRisk: [] });
   const [insightsError, setInsightsError] = useState(null);
@@ -262,14 +253,6 @@ export default function Manager() {
       .catch((err) => setOperationsError(err.response?.data?.error || err.message || 'Failed to load operations data'));
   };
 
-  const fetchFinance = () => {
-    setFinanceError(null);
-    api
-      .get('/finance/adjustments')
-      .then((res) => setFinanceAdjustments(Array.isArray(res.data?.adjustments) ? res.data.adjustments : []))
-      .catch((err) => setFinanceError(err.response?.data?.error || err.message || 'Failed to load finance adjustments'));
-  };
-
   const fetchInsights = () => {
     setInsightsError(null);
     Promise.all([
@@ -327,11 +310,6 @@ export default function Manager() {
   useEffect(() => {
     if (!user || activeTab !== 'operations') return;
     fetchOperations();
-  }, [user, activeTab]);
-
-  useEffect(() => {
-    if (!user || activeTab !== 'finance') return;
-    fetchFinance();
   }, [user, activeTab]);
 
   useEffect(() => {
@@ -656,23 +634,6 @@ export default function Manager() {
     }
   };
 
-  const createFinanceAdjustment = async () => {
-    try {
-      await api.post('/finance/adjustments', {
-        order_id: financeDraft.order_id ? Number(financeDraft.order_id) : null,
-        transaction_id: financeDraft.transaction_id ? Number(financeDraft.transaction_id) : null,
-        adjustment_type: financeDraft.adjustment_type,
-        amount: Number(financeDraft.amount || 0),
-        reason: financeDraft.reason || '',
-      }, { headers: managerHeaders });
-      setFinanceDraft({ order_id: '', transaction_id: '', adjustment_type: 'refund', amount: '', reason: '' });
-      fetchFinance();
-      setFeedback('Finance adjustment logged.');
-    } catch (err) {
-      setFinanceError(err.response?.data?.error || err.message || 'Failed to create finance adjustment');
-    }
-  };
-
   const createExportSchedule = async () => {
     try {
       await api.post('/export-schedules', {
@@ -800,7 +761,6 @@ export default function Manager() {
               { key: 'employees',  icon: '👥', label: 'Employees' },
               { key: 'schedule',   icon: '📅', label: 'Schedules' },
               { key: 'operations', icon: '🏪', label: 'Operations' },
-              { key: 'finance',    icon: '💰', label: 'Finance' },
               { key: 'insights',   icon: '💡', label: 'Insights' },
               { key: 'audit',      icon: '🔍', label: 'Audit' },
             ].map(({ key, icon, label }) => (
@@ -1477,41 +1437,6 @@ export default function Manager() {
                   ))}
                 </div>
               </section>
-            </>
-          )}
-
-          {activeTab === 'finance' && (
-            <>
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl" aria-hidden="true">💰</span>
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-800">Finance Controls</h2>
-                    <p className="text-sm text-gray-500 mt-0.5">Voids, refunds, comps, discounts, and service-charge adjustments.</p>
-                  </div>
-                </div>
-                <button type="button" onClick={fetchFinance} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition">Refresh</button>
-              </div>
-              {financeError && <p className="text-red-600 mb-4">{financeError}</p>}
-              <section className="mb-6 rounded-xl border border-gray-200 p-4">
-                <h3 className="font-semibold text-gray-800 mb-3">Record Adjustment</h3>
-                <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
-                  <input type="number" placeholder="Order ID (optional)" value={financeDraft.order_id} onChange={(e) => setFinanceDraft((d) => ({ ...d, order_id: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <input type="number" placeholder="Tx ID (optional)" value={financeDraft.transaction_id} onChange={(e) => setFinanceDraft((d) => ({ ...d, transaction_id: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <select value={financeDraft.adjustment_type} onChange={(e) => setFinanceDraft((d) => ({ ...d, adjustment_type: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm">
-                    <option value="void">void</option><option value="refund">refund</option><option value="comp">comp</option><option value="discount">discount</option><option value="service_charge">service_charge</option>
-                  </select>
-                  <input type="number" step="0.01" placeholder="Amount" value={financeDraft.amount} onChange={(e) => setFinanceDraft((d) => ({ ...d, amount: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <input type="text" placeholder="Reason" value={financeDraft.reason} onChange={(e) => setFinanceDraft((d) => ({ ...d, reason: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm md:col-span-2" />
-                </div>
-                <button type="button" onClick={createFinanceAdjustment} className="mt-3 rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Save Adjustment</button>
-              </section>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm border-collapse">
-                  <thead><tr className="border-b border-gray-200 text-gray-700"><th className="py-2 pr-3">Type</th><th className="py-2 pr-3">Amount</th><th className="py-2 pr-3">Order</th><th className="py-2 pr-3">Transaction</th><th className="py-2 pr-3">Reason</th><th className="py-2">Created</th></tr></thead>
-                  <tbody>{financeAdjustments.slice(0, 80).map((a) => <tr key={a.id} className="border-b border-gray-100 text-gray-800"><td className="py-2 pr-3">{a.adjustment_type}</td><td className="py-2 pr-3">{formatCurrency(a.amount)}</td><td className="py-2 pr-3">{a.order_id || '—'}</td><td className="py-2 pr-3">{a.transaction_id || '—'}</td><td className="py-2 pr-3">{a.reason || '—'}</td><td className="py-2">{formatDateTime(a.created_at)}</td></tr>)}</tbody>
-                </table>
-              </div>
             </>
           )}
 

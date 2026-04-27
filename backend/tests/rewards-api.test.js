@@ -23,7 +23,14 @@ function loadAppWithMocks({ dbResponses, customerId = null }) {
     async query(sql, params) {
       this.calls.push({ sql, params });
       if (
+        sql.includes('CREATE TABLE IF NOT EXISTS customer_accounts') ||
         sql.includes('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS points_balance') ||
+        sql.includes('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS picture_url') ||
+        sql.includes('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS oauth_provider') ||
+        sql.includes('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS oauth_subject') ||
+        sql.includes('ALTER TABLE customer_accounts ALTER COLUMN oauth_provider') ||
+        sql.includes('UPDATE customer_accounts SET oauth_provider') ||
+        sql.includes('UPDATE customer_accounts SET oauth_subject') ||
         sql.includes('CREATE TABLE IF NOT EXISTS points_ledger') ||
         sql.includes('ALTER TABLE points_ledger') ||
         sql.includes('CREATE INDEX IF NOT EXISTS idx_points_ledger_customer_time')
@@ -98,6 +105,7 @@ test('customer kiosk rewards use checkout email as a persistent database account
     customerId: null,
     dbResponses: [
       { rows: [] },
+      { rows: [] },
       { rows: [{ id: 7, points_balance: 10 }] },
       { rows: [{ id: 101 }] },
       { rows: [] },
@@ -110,7 +118,8 @@ test('customer kiosk rewards use checkout email as a persistent database account
       { rows: [] },
       { rows: [] },
       { rows: [] },
-      { rows: [{ points_balance: 12 }] },
+      { rows: [] },
+      { rows: [{ points_balance: 6 }] },
     ],
   });
 
@@ -143,28 +152,96 @@ test('customer kiosk rewards use checkout email as a persistent database account
       const body = await response.json();
       assert.equal(body.id, 101);
       assert.match(body.orderNumber, /^\d{4}$/);
-      assert.equal(body.pointsEarned, 2);
-      assert.equal(body.rewardsBalance, 12);
-      assert.equal(body.freeBobaCount, 2);
-      assert.equal(body.pointsToNextFreeBoba, 3);
+      assert.equal(body.pointsEarned, 1);
+      assert.equal(body.rewardsBalance, 6);
+      assert.equal(body.freeBobaCount, 1);
+      assert.equal(body.pointsToNextFreeBoba, 4);
+      assert.equal(body.rewardDiscountAmount, 4.5);
+      assert.equal(body.redeemedRewardPoints, 5);
     });
   });
 
-  const upsertCustomer = db.calls.find((call) => call.sql.includes('INSERT INTO customer_accounts'));
-  assert.ok(upsertCustomer, 'expected customer account upsert');
-  assert.deepEqual(upsertCustomer.params, ['taylor@example.com', 'Taylor']);
+  const lookupCustomer = db.calls.find((call) => call.sql.includes('FROM customer_accounts') && call.sql.includes('LOWER(email) = $1'));
+  assert.ok(lookupCustomer, 'expected customer account lookup by normalized email');
+  assert.deepEqual(lookupCustomer.params, ['taylor@example.com']);
+
+  const insertCustomer = db.calls.find((call) => call.sql.includes('INSERT INTO customer_accounts'));
+  assert.ok(insertCustomer, 'expected customer account insert');
+  assert.deepEqual(insertCustomer.params, ['taylor@example.com', 'Taylor']);
 
   const schemaRepair = db.calls.find((call) => call.sql.includes('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS points_balance'));
   assert.ok(schemaRepair, 'expected rewards schema guard before using customer points');
 
+  const oauthSubjectRepair = db.calls.find((call) => call.sql.includes('ADD COLUMN IF NOT EXISTS oauth_subject'));
+  assert.ok(oauthSubjectRepair, 'expected customer account oauth schema guard before email rewards checkout');
+
   const insertOrder = db.calls.find((call) => call.sql.includes('INSERT INTO orders'));
   assert.ok(insertOrder, 'expected order insert query');
   assert.equal(insertOrder.params[1], 7);
-  assert.equal(insertOrder.params[3], 2);
+  assert.equal(insertOrder.params[3], 1);
 
-  const ledgerInsert = db.calls.find((call) => call.sql.includes('INSERT INTO points_ledger'));
+  const redemptionLedger = db.calls.find((call) => call.sql.includes('INSERT INTO points_ledger') && call.params?.[1] === 'reward_redemption');
+  assert.ok(redemptionLedger, 'expected reward redemption ledger insert');
+  assert.deepEqual(redemptionLedger.params.slice(0, 4), [7, 'reward_redemption', -5, 101]);
+
+  const ledgerInsert = db.calls.find((call) => call.sql.includes('INSERT INTO points_ledger') && call.params?.[1] === 'order');
   assert.ok(ledgerInsert, 'expected points ledger insert');
-  assert.deepEqual(ledgerInsert.params.slice(0, 4), [7, 'order', 2, 101]);
+  assert.deepEqual(ledgerInsert.params.slice(0, 4), [7, 'order', 1, 101]);
+});
+
+test('customer kiosk rewards checkout does not depend on an email ON CONFLICT constraint', async () => {
+  const { app, db } = loadAppWithMocks({
+    customerId: null,
+    dbResponses: [
+      { rows: [] },
+      { rows: [] },
+      { rows: [{ id: 8, points_balance: 0 }] },
+      { rows: [{ id: 106 }] },
+      { rows: [] },
+      { rows: [{ next_id: 505 }] },
+      { rows: [{ next_id: 905 }] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [{ points_balance: 1 }] },
+    ],
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cashier_id: 4,
+        total_amount: 4.5,
+        placed_via: 'customer_kiosk',
+        customer_name: 'Shrutwik',
+        customer_email: 'shrutwik@gmail.com',
+        items: [
+          {
+            menu_item_id: 3,
+            quantity: 1,
+            price: 4.5,
+            customization: null,
+          },
+        ],
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.pointsEarned, 1);
+    assert.equal(body.rewardsBalance, 1);
+  });
+
+  const unsupportedConflictUpsert = db.calls.find((call) => call.sql.includes('ON CONFLICT (email)'));
+  assert.equal(unsupportedConflictUpsert, undefined);
 });
 
 test('signed-in kiosk checkout without name and email does not earn rewards', async () => {
@@ -282,11 +359,12 @@ test('email-only kiosk checkout does not create rewards activity', async () => {
   assert.equal(ledgerInsert, undefined);
 });
 
-test('repeat kiosk checkout with same email increments the existing rewards balance', async () => {
+test('repeat kiosk checkout with same email redeems one free boba before earning paid-drink points', async () => {
   const { app, db } = loadAppWithMocks({
     customerId: null,
     dbResponses: [
       { rows: [] },
+      { rows: [{ id: 7, points_balance: 12 }] },
       { rows: [{ id: 7, points_balance: 12 }] },
       { rows: [{ id: 103 }] },
       { rows: [] },
@@ -299,7 +377,8 @@ test('repeat kiosk checkout with same email increments the existing rewards bala
       { rows: [] },
       { rows: [] },
       { rows: [] },
-      { rows: [{ points_balance: 15 }] },
+      { rows: [] },
+      { rows: [{ points_balance: 9 }] },
     ],
   });
 
@@ -329,18 +408,108 @@ test('repeat kiosk checkout with same email increments the existing rewards bala
     assert.equal(response.status, 201);
     const body = await response.json();
     assert.equal(body.id, 103);
-    assert.equal(body.pointsEarned, 3);
-    assert.equal(body.rewardsBalance, 15);
-    assert.equal(body.freeBobaCount, 3);
+    assert.equal(body.pointsEarned, 2);
+    assert.equal(body.rewardsBalance, 9);
+    assert.equal(body.freeBobaCount, 1);
+    assert.equal(body.pointsToNextFreeBoba, 1);
+    assert.equal(body.rewardDiscountAmount, 4.5);
+    assert.equal(body.redeemedRewardPoints, 5);
+  });
+
+  const unsupportedConflictUpsert = db.calls.find((call) => call.sql.includes('ON CONFLICT (email)'));
+  assert.equal(unsupportedConflictUpsert, undefined);
+
+  const updateCustomerName = db.calls.find((call) => call.sql.includes('UPDATE customer_accounts') && call.sql.includes('RETURNING id, points_balance'));
+  assert.ok(updateCustomerName, 'expected existing customer update');
+  assert.deepEqual(updateCustomerName.params, [7, 'Taylor']);
+
+  const balanceUpdate = db.calls.find((call) => call.sql.includes('SET points_balance = GREATEST(0, points_balance + $1)'));
+  assert.ok(balanceUpdate, 'expected persistent balance increment');
+  assert.deepEqual(balanceUpdate.params, [-3, 7]);
+});
+
+test('customer with 5 reward points gets the next boba free', async () => {
+  const { app, db } = loadAppWithMocks({
+    customerId: null,
+    dbResponses: [
+      { rows: [] },
+      { rows: [{ id: 11, points_balance: 5 }] },
+      { rows: [{ id: 11, points_balance: 5 }] },
+      { rows: [{ id: 107 }] },
+      { rows: [] },
+      { rows: [{ next_id: 506 }] },
+      { rows: [{ next_id: 906 }] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [{ points_balance: 0 }] },
+    ],
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cashier_id: 4,
+        total_amount: 4.5,
+        placed_via: 'customer_kiosk',
+        customer_name: 'Shrutwik',
+        customer_email: 'shrutwik@gmail.com',
+        items: [
+          {
+            menu_item_id: 3,
+            quantity: 1,
+            price: 4.5,
+            customization: null,
+          },
+        ],
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.total_amount, 0);
+    assert.equal(body.gross_amount, 4.5);
+    assert.equal(body.rewardDiscountAmount, 4.5);
+    assert.equal(body.redeemedRewardPoints, 5);
+    assert.equal(body.redeemedFreeBobaCount, 1);
+    assert.equal(body.pointsEarned, 0);
+    assert.equal(body.rewardsBalance, 0);
+    assert.equal(body.freeBobaCount, 0);
     assert.equal(body.pointsToNextFreeBoba, 5);
   });
 
-  const upsertCustomer = db.calls.find((call) => call.sql.includes('ON CONFLICT (email)'));
-  assert.ok(upsertCustomer, 'expected email conflict-safe customer upsert');
+  const insertOrder = db.calls.find((call) => call.sql.includes('INSERT INTO orders'));
+  assert.ok(insertOrder, 'expected order insert query');
+  assert.equal(insertOrder.params[2], 0);
+  assert.equal(insertOrder.params[3], 0);
 
-  const balanceUpdate = db.calls.find((call) => call.sql.includes('SET points_balance = points_balance + $1'));
-  assert.ok(balanceUpdate, 'expected persistent balance increment');
-  assert.deepEqual(balanceUpdate.params, [3, 7]);
+  const transactionPayment = db.calls.find((call) => call.sql.includes('INSERT INTO transaction_payments'));
+  assert.ok(transactionPayment, 'expected transaction payment insert');
+  assert.deepEqual(transactionPayment.params, [506, 'card', 0]);
+
+  const transactionItem = db.calls.find((call) => call.sql.includes('INSERT INTO TransactionItem'));
+  assert.ok(transactionItem, 'expected transaction item insert');
+  assert.equal(transactionItem.params[4], 0);
+
+  const redemptionLedger = db.calls.find((call) => call.sql.includes('INSERT INTO points_ledger') && call.params?.[1] === 'reward_redemption');
+  assert.ok(redemptionLedger, 'expected reward redemption ledger insert');
+  assert.deepEqual(redemptionLedger.params.slice(0, 4), [11, 'reward_redemption', -5, 107]);
+
+  const earnedLedger = db.calls.find((call) => call.sql.includes('INSERT INTO points_ledger') && call.params?.[1] === 'order');
+  assert.equal(earnedLedger, undefined);
+
+  const balanceUpdate = db.calls.find((call) => call.sql.includes('SET points_balance = GREATEST(0, points_balance + $1)'));
+  assert.ok(balanceUpdate, 'expected net rewards balance update');
+  assert.deepEqual(balanceUpdate.params, [-5, 11]);
 });
 
 test('rewards endpoint returns the current signed-in customer balance', async () => {
