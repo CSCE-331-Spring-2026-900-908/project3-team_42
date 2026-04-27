@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api, { CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY } from '../api';
+import { clearActiveKioskCart, loadActiveKioskCart } from '../lib/kioskCart';
 
 const KIOSK_CASHIER_ID = 3;
 
@@ -12,7 +13,13 @@ export default function CheckoutPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { cart, cartTotal } = location.state || {};
+  const routeCart = location.state?.cart;
+  const [storedCart] = useState(() => loadActiveKioskCart());
+  const cart = Array.isArray(routeCart) && routeCart.length > 0 ? routeCart : storedCart;
+  const routeCartTotal = Number(location.state?.cartTotal);
+  const cartTotal = Array.isArray(routeCart) && routeCart.length > 0 && Number.isFinite(routeCartTotal)
+    ? routeCartTotal
+    : cart.reduce((sum, line) => sum + (line.custom_price ?? getBasePrice(line)) * line.quantity, 0);
 
   useEffect(() => {
     if (!cart || cart.length === 0) navigate('/customer', { replace: true });
@@ -94,6 +101,7 @@ export default function CheckoutPage() {
         CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY,
         JSON.stringify(confirmationOrder)
       );
+      clearActiveKioskCart();
 
       navigate('/customer/confirmation', { state: { order: confirmationOrder } });
     } catch (err) {
@@ -210,7 +218,7 @@ export default function CheckoutPage() {
             disabled={!hasRewardsInfo || isGuest}
             className="w-full rounded-2xl bg-stone-800 py-4 text-base font-bold text-white transition hover:bg-stone-700 active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            Pay &amp; Earn Points — ${total.toFixed(2)}
+            Checkout &amp; Earn Points — ${total.toFixed(2)}
           </button>
         </form>
 

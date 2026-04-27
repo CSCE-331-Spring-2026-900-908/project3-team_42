@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY } from '../api';
+import { clearActiveKioskCart } from '../lib/kioskCart';
 import { BOBAS_PER_FREE_REWARD, buildRewardsSummary } from '../lib/rewards';
 
 function formatMoney(value) {
@@ -45,6 +46,7 @@ export default function OrderConfirmation() {
 
   const handleStartNewOrder = () => {
     sessionStorage.removeItem(CUSTOMER_ORDER_CONFIRMATION_STORAGE_KEY);
+    clearActiveKioskCart();
     navigate('/customer', { replace: true });
   };
 
@@ -106,7 +108,7 @@ export default function OrderConfirmation() {
             <div className="mt-5 space-y-4">
               {order.items.map((item) => (
                 <article
-                  key={item.lineId}
+                  key={item.id}
                   className="rounded-3xl border border-stone-100 bg-stone-50/80 px-4 py-4"
                 >
                   <div className="flex items-start justify-between gap-4">

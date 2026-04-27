@@ -499,10 +499,13 @@ router.delete('/shifts/:id', async (req, res) => {
 
 // Create an order
 router.post('/orders', async (req, res) => {
-    const { cashier_id, items, placed_via, payment_method } = req.body;
+    const { cashier_id, items, placed_via, payment_method, customer_name, customer_email } = req.body;
     let customerAccountId = null;
+    let rewardsBalance = null;
     const inferredMethod = placed_via === 'customer_kiosk' ? 'card' : 'cash';
     const paymentMethod = String(payment_method || inferredMethod || 'unspecified').trim().toLowerCase();
+    const normalizedCustomerName = String(customer_name || '').trim();
+    const normalizedCustomerEmail = String(customer_email || '').trim().toLowerCase();
     const normalizedItems = normalizeOrderItems(items);
     if (normalizedItems.length === 0) {
         return res.status(400).json({ error: 'Order must include at least one valid item.' });
@@ -514,20 +517,33 @@ router.post('/orders', async (req, res) => {
         0
     );
 
-    if (placed_via === 'customer_kiosk') {
-        customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
-        if (customerAccountId) {
-            pointsEarned = calculateRewardPoints(items);
-        }
-    }
-
     try {
         await db.query('BEGIN');
 
-        const pointsEarned = customerAccountId ? calculateOrderPoints(total_amount) : 0;
+        if (placed_via === 'customer_kiosk') {
+            customerAccountId = tryGetCustomerIdFromAuthHeader(req.headers.authorization);
+            if (!customerAccountId && normalizedCustomerEmail) {
+                const customerResult = await db.query(
+                    `
+                    INSERT INTO customer_accounts (email, name, oauth_provider, oauth_subject)
+                    VALUES ($1, $2, 'email', $1)
+                    ON CONFLICT (email) DO UPDATE
+                    SET name = COALESCE(NULLIF(EXCLUDED.name, ''), customer_accounts.name),
+                        updated_at = CURRENT_TIMESTAMP
+                    RETURNING id, points_balance
+                    `,
+                    [normalizedCustomerEmail, normalizedCustomerName || null]
+                );
+                const customer = customerResult.rows[0];
+                customerAccountId = customer?.id ?? null;
+                rewardsBalance = customer?.points_balance ?? null;
+            }
+        }
+
+        const pointsEarned = customerAccountId ? calculateRewardPoints(normalizedItems) : 0;
         const orderResult = await db.query(
-            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status) VALUES ($1, $2, $3, 'completed') RETURNING id",
-            [cashier_id, customerAccountId, computedTotal]
+            "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status, points_earned) VALUES ($1, $2, $3, 'completed', $4) RETURNING id",
+            [cashier_id, customerAccountId, computedTotal, pointsEarned]
         );
         const orderId = orderResult.rows[0].id;
 
@@ -603,7 +619,6 @@ router.post('/orders', async (req, res) => {
             [transactionId, orderId]
         );
 
-        let rewardsBalance = null;
         if (customerAccountId && pointsEarned > 0) {
             await db.query(
                 `INSERT INTO points_ledger (customer_account_id, activity_type, points_delta, order_id, metadata)
@@ -628,11 +643,18 @@ router.post('/orders', async (req, res) => {
             rewardsBalance = rewardsResult.rows[0]?.points_balance ?? null;
         }
 
+        const rewardsSummary = buildRewardsSummary(rewardsBalance || 0);
+
         await db.query('COMMIT');
         res.status(201).json({
             id: orderId,
+            orderNumber: generateOrderNumber(),
             transaction_id: transactionId,
             total_amount: Number(computedTotal.toFixed(2)),
+            pointsEarned,
+            rewardsBalance: rewardsSummary.pointsBalance,
+            freeBobaCount: rewardsSummary.freeBobaCount,
+            pointsToNextFreeBoba: rewardsSummary.pointsToNextFreeBoba,
             message: 'Order created successfully',
         });
     } catch (err) {

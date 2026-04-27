@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import { loadActiveKioskCart, saveActiveKioskCart } from '../lib/kioskCart';
 
 function defaultKioskCopy() {
   return {
@@ -8,11 +9,11 @@ function defaultKioskCopy() {
     translateBtn: 'Translate to Spanish',
     addToOrder: 'Add to order',
     total: 'Total',
-    checkout: 'Pay now',
+    checkout: 'Checkout',
     yourOrder: 'Your order',
     stepBrowse: 'Browse',
     stepReview: 'Review',
-    stepPay: 'Pay',
+    stepPay: 'Checkout',
     emptyCart: 'Tap a drink to start your order',
     assistantHint: 'Ask about flavors, ice, or toppings',
   };
@@ -27,7 +28,7 @@ export default function CustomerKiosk() {
   const [sweetness, setSweetness] = useState('Normal 100%');
   const [ice, setIce] = useState('Regular');
   const [selectedToppings, setSelectedToppings] = useState([]);
-  const [cart, setCart] = useState([]);
+  const [cart, setCart] = useState(() => loadActiveKioskCart());
   const [language, setLanguage] = useState('en');
   const [isTranslating, setIsTranslating] = useState(false);
   const [weather, setWeather] = useState(null);
@@ -46,6 +47,10 @@ export default function CustomerKiosk() {
     api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
     api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
   }, []);
+
+  useEffect(() => {
+    saveActiveKioskCart(cart);
+  }, [cart]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -240,13 +245,21 @@ export default function CustomerKiosk() {
 
   const addToCart = (item) => {
     setCart((prev) => {
-      const i = prev.findIndex((l) => l.id === item.id);
+      const getLineKey = (line) => JSON.stringify({
+        id: line.id,
+        customization: line.customization || null,
+        price: Number(line.custom_price ?? getBasePrice(line)),
+      });
+      const itemKey = getLineKey(item);
+      const i = prev.findIndex((l) => (
+        item.unique_id ? l.unique_id === item.unique_id : getLineKey(l) === itemKey
+      ));
       if (i >= 0) {
         const next = [...prev];
         next[i] = { ...next[i], quantity: next[i].quantity + 1 };
         return next;
       }
-      return [...prev, { ...item, unique_id: Date.now(), quantity: 1 }];
+      return [...prev, { ...item, unique_id: `${item.id}-${Date.now()}`, quantity: 1 }];
     });
   };
 
