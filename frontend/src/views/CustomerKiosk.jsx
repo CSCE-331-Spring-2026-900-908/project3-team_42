@@ -31,6 +31,44 @@ function defaultKioskCopy() {
   };
 }
 
+const formatChatMsg = (text) => {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br/>');
+};
+
+function DrinkImage({ item, baseMenuItems, className, fallbackClassName }) {
+  const [error, setError] = useState(false);
+  const getCategoryFilename = (category) => {
+    const cat = (category || 'Specialty').toLowerCase();
+    if (cat.includes('fruit')) return 'fruit-tea.png';
+    if (cat.includes('matcha')) return 'matcha-tea.png';
+    if (cat.includes('milk')) return 'milk-tea.png';
+    if (cat.includes('slush')) return 'slush.png';
+    return 'specialty.png';
+  };
+
+  const originalItem = baseMenuItems?.find(b => b.id === item.id) || item;
+  const isPlaceholder = item.image_url === '/images/placeholder.png' || item.image_url === 'null';
+  const imageSrc = (!item.image_url || isPlaceholder) 
+    ? `/menu-images/${getCategoryFilename(originalItem.category)}` 
+    : item.image_url;
+
+  if (error) {
+    return <span className={fallbackClassName || "text-5xl opacity-30"} aria-hidden="true">{'\u{1F9CB}'}</span>;
+  }
+
+  return (
+    <img
+      src={imageSrc}
+      alt={item.name}
+      className={className || "h-full w-full object-cover transition group-hover:scale-105"}
+      onError={() => setError(true)}
+    />
+  );
+}
+
 export default function CustomerKiosk() {
   const navigate = useNavigate();
 
@@ -126,7 +164,13 @@ export default function CustomerKiosk() {
   }, [menuItems]);
 
   const displayedItems = useMemo(() => {
-    if (selectedCategory === 'All') return menuItems;
+    if (selectedCategory === 'All') {
+      return [...menuItems].sort((a, b) => {
+        const hashA = (a.id * 137) % 251;
+        const hashB = (b.id * 137) % 251;
+        return hashA - hashB;
+      });
+    }
     return menuItems.filter(item => (item.category || 'Specialty') === selectedCategory);
   }, [menuItems, selectedCategory]);
 
@@ -248,7 +292,7 @@ export default function CustomerKiosk() {
   ];
 
   const toggleTopping = (id) => {
-    setSelectedToppings((prev) => 
+    setSelectedToppings((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     );
   };
@@ -327,14 +371,14 @@ export default function CustomerKiosk() {
 
   return (
     <div className="flex h-screen flex-row bg-[#faf9f7] font-sans overflow-hidden text-stone-800">
-      
+
       {/* Main Left Menu Section */}
       <div className="flex flex-1 flex-col px-6 pt-5 pb-0 relative z-10">
         {/* Top Bar */}
         <header className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => navigate(-1)} 
+            <button
+              onClick={() => navigate(-1)}
               className="flex items-center justify-center p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
               aria-label="Back"
             >
@@ -390,7 +434,14 @@ export default function CustomerKiosk() {
                   onClick={() => handleDrinkClick(item)}
                   className="flex shrink-0 items-center gap-3 rounded-xl border border-white/60 bg-white/80 px-4 py-3 text-left transition hover:bg-white hover:shadow-sm active:scale-95"
                 >
-                  <span className="text-2xl" aria-hidden="true">{'\u{1F9CB}'}</span>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-stone-100">
+                    <DrinkImage
+                      item={item}
+                      baseMenuItems={baseMenuItems}
+                      className="h-full w-full object-cover"
+                      fallbackClassName="text-2xl opacity-50"
+                    />
+                  </div>
                   <div>
                     <p className="text-sm font-bold leading-tight text-stone-800">{item.name}</p>
                     <p className="text-xs font-medium text-stone-500">${getBasePrice(item).toFixed(2)}</p>
@@ -425,11 +476,10 @@ export default function CustomerKiosk() {
                 className="group flex flex-col items-center justify-start rounded-2xl border border-stone-200 bg-white text-center transition hover:border-stone-300 hover:shadow-md active:scale-[0.97]"
               >
                 <div className="w-full aspect-[4/3] rounded-t-2xl bg-stone-100 flex items-center justify-center overflow-hidden">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-105" />
-                  ) : (
-                    <span className="text-5xl opacity-30" aria-hidden="true">{'\u{1F9CB}'}</span>
-                  )}
+                  <DrinkImage
+                    item={item}
+                    baseMenuItems={baseMenuItems}
+                  />
                 </div>
                 <div className="p-4 w-full flex flex-col items-center flex-1">
                   <span className="text-[15px] font-bold leading-snug text-stone-800 line-clamp-2">
@@ -464,16 +514,28 @@ export default function CustomerKiosk() {
             <div className="space-y-3">
               {cart.map((item) => (
                 <div key={item.unique_id} className="flex flex-col rounded-xl border border-stone-100 bg-stone-50 p-3">
-                  <div className="flex justify-between items-start font-bold text-stone-800 text-[14px]">
-                    <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
-                    <span>${(item.custom_price ?? getBasePrice(item)).toFixed(2)}</span>
-                  </div>
-                  {item.customization && (
-                    <div className="text-xs text-stone-400 mt-1 leading-relaxed">
-                      S: {item.customization.sweetness} | I: {item.customization.ice}
-                      {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
+                  <div className="flex gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-stone-200">
+                      <DrinkImage
+                        item={item}
+                        baseMenuItems={baseMenuItems}
+                        className="h-full w-full object-cover"
+                        fallbackClassName="text-2xl opacity-50"
+                      />
                     </div>
-                  )}
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start font-bold text-stone-800 text-[14px]">
+                        <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
+                        <span>${(item.custom_price ?? getBasePrice(item)).toFixed(2)}</span>
+                      </div>
+                      {item.customization && (
+                        <div className="text-xs text-stone-400 mt-1 leading-relaxed">
+                          S: {item.customization.sweetness} | I: {item.customization.ice}
+                          {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">-</button>
@@ -490,12 +552,12 @@ export default function CustomerKiosk() {
 
         <div className="px-5 py-5 shrink-0 border-t border-stone-100">
           <div className="flex justify-between text-sm font-medium text-stone-500 mb-1">
-             <span>{language === 'es' ? 'Subtotal' : 'Subtotal'}</span>
-             <span>${cartTotal.toFixed(2)}</span>
+            <span>{language === 'es' ? 'Subtotal' : 'Subtotal'}</span>
+            <span>${cartTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm font-medium text-stone-500 mb-3">
-             <span>{language === 'es' ? 'Impuesto' : 'Tax (8.25%)'}</span>
-             <span>${(cartTotal * 0.0825).toFixed(2)}</span>
+            <span>{language === 'es' ? 'Impuesto' : 'Tax (8.25%)'}</span>
+            <span>${(cartTotal * 0.0825).toFixed(2)}</span>
           </div>
           <div className="border-t border-stone-200 pt-3 flex justify-between text-2xl font-black text-stone-900">
             <span>{copy.total}</span>
@@ -527,9 +589,8 @@ export default function CustomerKiosk() {
 
       <div
         ref={chatPanelRef}
-        className={`fixed bottom-6 right-96 mr-6 z-50 w-[380px] origin-bottom-right transition ${
-          chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
-        }`}
+        className={`fixed bottom-6 right-96 mr-6 z-50 w-[380px] origin-bottom-right transition ${chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
+          }`}
       >
         <div className="flex max-h-[500px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
           <div className="flex items-center justify-between bg-slate-900 px-5 py-4 text-white">
@@ -540,7 +601,7 @@ export default function CustomerKiosk() {
             {chatLog.length === 0 && <p className="text-center text-sm text-slate-500">{copy.assistantHint}</p>}
             {chatLog.map((msg, i) => (
               <div key={i} className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${msg.sender === 'user' ? 'ml-auto bg-slate-800 text-white' : 'border border-slate-200 bg-white text-slate-800'}`}>
-                <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
+                <span dangerouslySetInnerHTML={{ __html: formatChatMsg(msg.text) }} />
               </div>
             ))}
             {isChatting && <p className="text-sm italic text-slate-400">...</p>}
@@ -560,9 +621,19 @@ export default function CustomerKiosk() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
             <div className="mb-6 flex items-start justify-between">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight text-slate-900">Customize</h2>
-                <p className="font-medium text-slate-500 mt-1.5">{customizingItem.name}</p>
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-stone-100 shadow-sm">
+                  <DrinkImage
+                    item={customizingItem}
+                    baseMenuItems={baseMenuItems}
+                    className="h-full w-full object-cover"
+                    fallbackClassName="text-3xl opacity-50"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight text-slate-900">Customize</h2>
+                  <p className="font-medium text-slate-500 mt-1">{customizingItem.name}</p>
+                </div>
               </div>
               <button onClick={() => setCustomizingItem(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
