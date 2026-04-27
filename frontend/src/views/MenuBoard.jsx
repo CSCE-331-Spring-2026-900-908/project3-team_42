@@ -29,16 +29,16 @@ export default function MenuBoard() {
   const slushes = numberedItems.filter(item => item.category === 'Slush');
 
   const ItemRow = ({ item }) => (
-    <div key={item.id} className="flex justify-between items-center py-1.5 border-b border-stone-800/60">
-      <div className="flex items-center gap-3">
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-[1.5px] border-stone-500 text-xs font-bold text-stone-300">
+    <div key={item.id} className="flex justify-between items-center py-1 border-b border-stone-800/60">
+      <div className="flex items-center gap-2">
+        <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-stone-500 text-[10px] font-bold text-stone-300">
           {item.number}
         </div>
         <div className="flex flex-col">
-          <span className="text-lg font-medium tracking-tight text-stone-100">{item.name}</span>
+          <span className="text-[15px] font-medium tracking-tight text-stone-100">{item.name}</span>
         </div>
       </div>
-      <span className="text-lg font-black text-orange-400 tabular-nums">${parseFloat(item.default_price).toFixed(2)}</span>
+      <span className="text-[15px] font-black text-orange-400 tabular-nums">${parseFloat(item.default_price).toFixed(2)}</span>
     </div>
   );
 
@@ -77,10 +77,10 @@ export default function MenuBoard() {
       <main id="main-content" className="flex min-h-0 flex-1 px-8 py-4">
         <div className="grid grid-cols-3 gap-8 w-full h-full">
           {/* Column 1: Milky Series & Specialty */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             <section>
               <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
-                <h2 className="text-2xl font-black uppercase tracking-tight text-white">Milky Series</h2>
+                <h2 className="text-xl font-black uppercase tracking-tight text-white">Milky Series</h2>
               </div>
               <div className="flex flex-col">
                 {milkTeas.map(item => <ItemRow key={item.id} item={item} />)}
@@ -89,7 +89,7 @@ export default function MenuBoard() {
             {(specialty.length > 0) && (
               <section>
                 <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
-                  <h2 className="text-2xl font-black uppercase tracking-tight text-white">Fresh Brew & Specialty</h2>
+                  <h2 className="text-xl font-black uppercase tracking-tight text-white">Fresh Brew & Specialty</h2>
                 </div>
                 <div className="flex flex-col">
                   {specialty.map(item => <ItemRow key={item.id} item={item} />)}
@@ -99,10 +99,10 @@ export default function MenuBoard() {
           </div>
 
           {/* Column 2: Fruity Beverage */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             <section>
               <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
-                <h2 className="text-2xl font-black uppercase tracking-tight text-white">Fruity Beverage</h2>
+                <h2 className="text-xl font-black uppercase tracking-tight text-white">Fruity Beverage</h2>
               </div>
               <div className="flex flex-col">
                 {fruitTeas.map(item => <ItemRow key={item.id} item={item} />)}
@@ -111,11 +111,11 @@ export default function MenuBoard() {
           </div>
 
           {/* Column 3: Matcha & Ice Blended */}
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-4">
             {(matcha.length > 0) && (
               <section>
                 <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
-                  <h2 className="text-2xl font-black uppercase tracking-tight text-white">New Matcha Series</h2>
+                  <h2 className="text-xl font-black uppercase tracking-tight text-white">New Matcha Series</h2>
                 </div>
                 <div className="flex flex-col">
                   {matcha.map(item => <ItemRow key={item.id} item={item} />)}
@@ -125,7 +125,7 @@ export default function MenuBoard() {
             {(slushes.length > 0) && (
               <section>
                 <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
-                  <h2 className="text-2xl font-black uppercase tracking-tight text-white">Ice-Blended</h2>
+                  <h2 className="text-xl font-black uppercase tracking-tight text-white">Ice-Blended</h2>
                 </div>
                 <div className="flex flex-col">
                   {slushes.map(item => <ItemRow key={item.id} item={item} />)}
@@ -137,15 +137,15 @@ export default function MenuBoard() {
       </main>
 
       {/* Customization Legend Bottom Footer */}
-      <footer className="shrink-0 border-t-[3px] border-stone-800 bg-[#0a0a0a] px-12 py-3">
-        <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-6 xl:gap-8">
-          <div className="flex flex-col gap-2 font-medium flex-1 text-sm text-stone-300">
+      <footer className="shrink-0 border-t-[3px] border-stone-800 bg-[#0a0a0a] px-12 py-2">
+        <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-4 xl:gap-6">
+          <div className="flex flex-col gap-1.5 font-medium flex-1 text-xs text-stone-300">
             <div className="flex flex-wrap items-center gap-3">
-              <span className="w-36 shrink-0 text-right text-sm font-black uppercase tracking-widest text-[#a1a1aa]">Ice Level</span>
+              <span className="w-36 shrink-0 text-right text-[11px] font-black uppercase tracking-widest text-[#a1a1aa]">Ice Level</span>
               <span>Regular &bull; Less &bull; No Ice</span>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="w-36 shrink-0 text-right text-sm font-black uppercase tracking-widest text-[#a1a1aa]">Sweetness Level</span>
+              <span className="w-36 shrink-0 text-right text-[11px] font-black uppercase tracking-widest text-[#a1a1aa]">Sweetness Level</span>
               <span className="flex flex-wrap gap-x-2">
                 <span>Normal 100% &bull;</span>
                 <span>Less 80% &bull;</span>
@@ -156,8 +156,8 @@ export default function MenuBoard() {
             </div>
           </div>
 
-          <div className="flex gap-4 flex-1 xl:justify-end text-sm text-stone-300 mt-1 xl:mt-0">
-            <span className="shrink-0 font-black uppercase tracking-widest text-[#a1a1aa]">Topping</span>
+          <div className="flex gap-4 flex-1 xl:justify-end text-xs text-stone-300 mt-1 xl:mt-0">
+            <span className="shrink-0 font-black uppercase tracking-widest text-[#a1a1aa] text-[11px]">Topping</span>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 lg:grid-cols-4">
               <span>Pearls (Boba)</span>
               <span>Lychee Jelly</span>
