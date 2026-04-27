@@ -1,6 +1,13 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api';
+import {
+  calculateCustomizedDrinkPrice,
+  DEFAULT_ICE_LEVEL,
+  DEFAULT_SIZE_OPTION,
+  HOT_ICE_LEVEL,
+  SIZE_OPTIONS,
+} from '../lib/drinkCustomization';
 import { loadActiveKioskCart, saveActiveKioskCart } from '../lib/kioskCart';
 
 const LANGUAGE_OPTIONS = [
@@ -38,6 +45,9 @@ function defaultKioskCopy() {
     weatherCold: 'Chilly today - warm up with these!',
     weatherNice: 'Nice day - try something special!',
     customize: 'Customize',
+    hotLabel: 'Hot',
+    hotHelper: 'Hot drinks are served with no ice.',
+    sizeLabel: 'SIZE',
     sweetnessLabel: 'SWEETNESS',
     iceLabel: 'ICE LEVEL',
     toppingsLabel: 'TOPPINGS (+$0.50)',
@@ -111,7 +121,9 @@ export default function CustomerKiosk() {
 
   const [customizingItem, setCustomizingItem] = useState(null);
   const [sweetness, setSweetness] = useState('Normal 100%');
-  const [ice, setIce] = useState('Regular');
+  const [ice, setIce] = useState(DEFAULT_ICE_LEVEL);
+  const [hot, setHot] = useState(false);
+  const [size, setSize] = useState(DEFAULT_SIZE_OPTION.id);
   const [selectedToppings, setSelectedToppings] = useState([]);
   const [cart, setCart] = useState(() => loadActiveKioskCart());
   const [language, setLanguage] = useState('en');
@@ -323,18 +335,35 @@ export default function CustomerKiosk() {
   const handleDrinkClick = (item) => {
     setCustomizingItem(item);
     setSweetness('Normal 100%');
-    setIce('Regular');
+    setIce(DEFAULT_ICE_LEVEL);
+    setHot(false);
+    setSize(DEFAULT_SIZE_OPTION.id);
     setSelectedToppings([]);
+  };
+
+  const handleHotToggle = () => {
+    setHot((value) => {
+      const next = !value;
+      if (next) setIce(HOT_ICE_LEVEL);
+      return next;
+    });
   };
 
   const handleCustomizationConfirm = () => {
     if (!customizingItem) return;
     const finalItem = {
       ...customizingItem,
-      custom_price: getBasePrice(customizingItem) + (selectedToppings.length * 0.5),
+      custom_price: calculateCustomizedDrinkPrice({
+        basePrice: getBasePrice(customizingItem),
+        toppingCount: selectedToppings.length,
+        sizeId: size,
+      }),
       customization: {
         sweetness,
-        ice,
+        size,
+        ice: hot ? HOT_ICE_LEVEL : ice,
+        temperature: hot ? 'Hot' : 'Cold',
+        hot,
         toppings: selectedToppings
       }
     };
@@ -544,7 +573,10 @@ export default function CustomerKiosk() {
                       </div>
                       {item.customization && (
                         <div className="text-xs text-stone-400 mt-1 leading-relaxed">
-                          S: {item.customization.sweetness} | I: {item.customization.ice}
+                          S: {item.customization.sweetness}
+                          {item.customization.size && ` | Size: ${item.customization.size}`}
+                          {item.customization.hot && ' | Hot'}
+                          {' | '}I: {item.customization.ice}
                           {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
                         </div>
                       )}
@@ -679,13 +711,45 @@ export default function CustomerKiosk() {
               </div>
 
               <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">{copy.sizeLabel}</h3>
+                <div className="flex flex-wrap gap-2">
+                  {SIZE_OPTIONS.map((option) => (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => setSize(option.id)}
+                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${size === option.id ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                    >
+                      {option.label}{option.upcharge > 0 ? ` +$${option.upcharge.toFixed(2)}` : ''}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Temperature</h3>
+                <button
+                  type="button"
+                  onClick={handleHotToggle}
+                  className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${hot ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                >
+                  {copy.hotLabel}
+                </button>
+                {hot && (
+                  <p className="mt-2 text-xs font-medium text-slate-500">{copy.hotHelper}</p>
+                )}
+              </div>
+
+              <div>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Ice Level</h3>
                 <div className="flex flex-wrap gap-2">
                   {['no ice', 'light ice', 'regular ice', 'extra ice'].map(level => (
                     <button
                       key={level}
+                      type="button"
                       onClick={() => setIce(level)}
-                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${ice === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                      disabled={hot}
+                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${ice === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'} ${hot ? 'cursor-not-allowed opacity-60' : ''}`}
                     >
                       {level.charAt(0).toUpperCase() + level.slice(1)}
                     </button>
@@ -718,7 +782,11 @@ export default function CustomerKiosk() {
                 onClick={handleCustomizationConfirm}
                 className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
               >
-                Add — <span className="tabular-nums">${(getBasePrice(customizingItem) + selectedToppings.length * 0.50).toFixed(2)}</span>
+                Add — <span className="tabular-nums">${calculateCustomizedDrinkPrice({
+                  basePrice: getBasePrice(customizingItem),
+                  toppingCount: selectedToppings.length,
+                  sizeId: size,
+                }).toFixed(2)}</span>
               </button>
             </div>
           </div>

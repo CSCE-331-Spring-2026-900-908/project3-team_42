@@ -119,7 +119,10 @@ export default function OrderConfirmation() {
                       <h3 className="text-lg font-bold text-stone-900">{item.name}</h3>
                       {item.customization && (
                         <p className="mt-1 text-sm text-stone-500">
-                          Sweetness: {item.customization.sweetness} | Ice: {item.customization.ice}
+                          Sweetness: {item.customization.sweetness}
+                          {item.customization.size && ` | Size: ${item.customization.size}`}
+                          {item.customization.hot && ' | Hot'}
+                          {' | '}Ice: {item.customization.ice}
                           {item.customization.toppings?.length
                             ? ` | Toppings: ${item.customization.toppings.join(', ')}`
                             : ''}
