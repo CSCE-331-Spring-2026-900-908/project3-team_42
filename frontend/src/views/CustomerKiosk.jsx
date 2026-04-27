@@ -41,6 +41,7 @@ function defaultKioskCopy() {
     catMilkTea: 'Milk Tea',
     catSlush: 'Slush',
     catSpecialty: 'Specialty',
+    catSeasonal: 'Seasonal',
     weatherHot: 'Hot outside - cool down with these!',
     weatherCold: 'Chilly today - warm up with these!',
     weatherNice: 'Nice day - try something special!',
@@ -90,6 +91,7 @@ function DrinkImage({ item, baseMenuItems, className, fallbackClassName }) {
     if (cat.includes('matcha')) return 'matcha-tea.png';
     if (cat.includes('milk')) return 'milk-tea.png';
     if (cat.includes('slush')) return 'slush.png';
+    if (cat.includes('seasonal')) return 'seasonal-tea.png';
     return 'specialty.png';
   };
 
@@ -141,7 +143,16 @@ export default function CustomerKiosk() {
   const [translateMenuOpen, setTranslateMenuOpen] = useState(false);
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
-  const getCatName = useCallback((cat) => { if(cat === 'All') return copy.catAll; if(cat === 'Fruit Tea') return copy.catFruitTea; if(cat === 'Matcha') return copy.catMatcha; if(cat === 'Milk Tea') return copy.catMilkTea; if(cat === 'Slush') return copy.catSlush; if(cat === 'Specialty') return copy.catSpecialty; return cat; }, [copy]);
+  const getCatName = useCallback((cat) => {
+    if (cat === 'All') return copy.catAll;
+    if (cat === 'Fruit Tea') return copy.catFruitTea;
+    if (cat === 'Matcha') return copy.catMatcha;
+    if (cat === 'Milk Tea') return copy.catMilkTea;
+    if (cat === 'Slush') return copy.catSlush;
+    if (cat === 'Specialty') return copy.catSpecialty;
+    if (cat === 'Seasonal') return copy.catSeasonal;
+    return cat;
+  }, [copy]);
   const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
 
   useEffect(() => {
@@ -242,7 +253,7 @@ export default function CustomerKiosk() {
     } else {
       recommended = menuItems.filter(i => {
         const cat = (i.category || '').toLowerCase();
-        return cat === 'specialty' || cat === 'matcha';
+        return cat === 'specialty' || cat === 'matcha' || cat === 'seasonal';
       });
     }
     return recommended.slice(0, 4).map(bItem => menuItems.find(m => m.id === bItem.id) || bItem);

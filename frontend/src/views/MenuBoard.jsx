@@ -25,6 +25,7 @@ export default function MenuBoard() {
   const fruitTeas = numberedItems.filter(item => item.category === 'Fruit Tea');
   const matcha = numberedItems.filter(item => item.category === 'Matcha');
   const slushes = numberedItems.filter(item => item.category === 'Slush');
+  const seasonal = numberedItems.filter(item => item.category === 'Seasonal');
 
   const ItemRow = ({ item }) => (
     <div key={item.id} className="flex justify-between items-center py-1 border-b border-stone-800/60">
@@ -97,6 +98,16 @@ export default function MenuBoard() {
                 {fruitTeas.map(item => <ItemRow key={item.id} item={item} />)}
               </div>
             </section>
+            {(seasonal.length > 0) && (
+              <section>
+                <div className="mb-2 flex items-center border-b-2 border-stone-700 pb-1">
+                  <h2 className="text-xl font-black uppercase tracking-tight text-white">Seasonal</h2>
+                </div>
+                <div className="flex flex-col">
+                  {seasonal.map(item => <ItemRow key={item.id} item={item} />)}
+                </div>
+              </section>
+            )}
           </div>
 
           {/* Column 3: Matcha & Ice Blended */}

@@ -157,6 +157,13 @@ function buildMenuItems() {
     { name: 'Strawberry w/ Lychee Jelly & Ice Cream', category: 'Slush', default_price: 6.50 },
     { name: 'Peach Tea w/ Lychee Jelly', category: 'Slush', default_price: 5.50 },
     { name: 'Lava Flow', category: 'Slush', default_price: 6.50 },
+
+    // Seasonal
+    { name: 'Cherry Blossom Bliss Boba', category: 'Seasonal', default_price: 6.25 },
+    { name: 'Lavender Honey Cloud Tea', category: 'Seasonal', default_price: 6.25 },
+    { name: 'Strawberry Sakura Swirl', category: 'Seasonal', default_price: 6.25 },
+    { name: 'Peach Petal Milk Tea', category: 'Seasonal', default_price: 6.25 },
+    { name: 'Rose Garden Refresher', category: 'Seasonal', default_price: 6.25 },
   ];
 
   return SHARETEA_MENU.map((item, i) => ({

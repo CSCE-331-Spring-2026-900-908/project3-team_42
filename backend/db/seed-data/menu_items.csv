@@ -38,3 +38,8 @@ id,name,description,category,default_price,discount_percent,image_url,is_availab
 37,Strawberry w/ Lychee Jelly & Ice Cream,Delicious Strawberry w/ Lychee Jelly & Ice Cream,Slush,6.5,0,/images/placeholder.png,true
 38,Peach Tea w/ Lychee Jelly,Delicious Peach Tea w/ Lychee Jelly,Slush,5.5,0,/images/placeholder.png,true
 39,Lava Flow,Delicious Lava Flow,Slush,6.5,0,/images/placeholder.png,true
+40,Cherry Blossom Bliss Boba,Limited-time seasonal drink: Cherry Blossom Bliss Boba,Seasonal,6.25,0,/images/placeholder.png,true
+41,Lavender Honey Cloud Tea,Limited-time seasonal drink: Lavender Honey Cloud Tea,Seasonal,6.25,0,/images/placeholder.png,true
+42,Strawberry Sakura Swirl,Limited-time seasonal drink: Strawberry Sakura Swirl,Seasonal,6.25,0,/images/placeholder.png,true
+43,Peach Petal Milk Tea,Limited-time seasonal drink: Peach Petal Milk Tea,Seasonal,6.25,0,/images/placeholder.png,true
+44,Rose Garden Refresher,Limited-time seasonal drink: Rose Garden Refresher,Seasonal,6.25,0,/images/placeholder.png,true

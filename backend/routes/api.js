@@ -8,6 +8,16 @@ const TAX_RATE = 0.0825;
 const BOBAS_PER_FREE_REWARD = 5;
 const ORDER_NUMBER_DIGITS = '0123456789';
 let customerRewardsSchemaReady = false;
+let seasonalMenuReady = false;
+let seasonalMenuReadyPromise = null;
+
+const SEASONAL_MENU_ITEMS = [
+    { name: 'Cherry Blossom Bliss Boba', defaultPrice: 6.25 },
+    { name: 'Lavender Honey Cloud Tea', defaultPrice: 6.25 },
+    { name: 'Strawberry Sakura Swirl', defaultPrice: 6.25 },
+    { name: 'Peach Petal Milk Tea', defaultPrice: 6.25 },
+    { name: 'Rose Garden Refresher', defaultPrice: 6.25 },
+];
 
 function calculateRewardPoints(items) {
     return (items || []).reduce((sum, item) => {
@@ -133,6 +143,87 @@ async function ensureCustomerRewardsSchema() {
     customerRewardsSchemaReady = true;
 }
 
+async function ensureSeasonalMenuItems() {
+    if (seasonalMenuReady) return;
+    if (seasonalMenuReadyPromise) {
+        await seasonalMenuReadyPromise;
+        return;
+    }
+
+    seasonalMenuReadyPromise = (async () => {
+        const seasonalNames = SEASONAL_MENU_ITEMS.map((item) => item.name);
+        const existingRes = await db.query(
+            `SELECT id, name
+             FROM menu_items
+             WHERE LOWER(name) = ANY($1::text[])`,
+            [seasonalNames.map((name) => name.toLowerCase())]
+        );
+
+        const idByName = new Map(
+            existingRes.rows.map((row) => [String(row.name || '').toLowerCase(), Number(row.id)])
+        );
+
+        for (const seasonalItem of SEASONAL_MENU_ITEMS) {
+            const normalizedName = seasonalItem.name.toLowerCase();
+            if (!idByName.has(normalizedName)) {
+                const insertRes = await db.query(
+                    `
+                    INSERT INTO menu_items
+                    (name, description, category, default_price, discount_percent, image_url, is_available)
+                    VALUES ($1, $2, $3, $4, 0, $5, TRUE)
+                    RETURNING id
+                    `,
+                    [
+                        seasonalItem.name,
+                        `Limited-time seasonal drink: ${seasonalItem.name}`,
+                        'Seasonal',
+                        seasonalItem.defaultPrice,
+                        '/images/placeholder.png',
+                    ]
+                );
+                idByName.set(normalizedName, Number(insertRes.rows[0].id));
+            }
+        }
+
+        for (const seasonalItem of SEASONAL_MENU_ITEMS) {
+            const productId = idByName.get(seasonalItem.name.toLowerCase());
+            if (!productId) continue;
+
+            const inventoryIds = [11, 12, 2]; // cup, straw, tea base
+            const itemName = seasonalItem.name.toLowerCase();
+            if (itemName.includes('milk') || itemName.includes('cloud')) inventoryIds.push(4);
+            if (itemName.includes('honey')) inventoryIds.push(8);
+            if (
+                itemName.includes('cherry')
+                || itemName.includes('strawberry')
+                || itemName.includes('peach')
+                || itemName.includes('rose')
+            ) {
+                inventoryIds.push(9);
+            }
+
+            for (const inventoryId of [...new Set(inventoryIds)]) {
+                await db.query(
+                    `
+                    INSERT INTO ProductInventory (ProductID, InventoryID)
+                    VALUES ($1, $2)
+                    ON CONFLICT DO NOTHING
+                    `,
+                    [productId, inventoryId]
+                );
+            }
+        }
+
+        seasonalMenuReady = true;
+    })();
+
+    try {
+        await seasonalMenuReadyPromise;
+    } finally {
+        seasonalMenuReadyPromise = null;
+    }
+}
+
 async function requireManager(req, res) {
     const managerEmail = String(req.headers['x-manager-email'] || '').trim().toLowerCase();
     if (!managerEmail) {
@@ -238,6 +329,7 @@ async function findOrCreateEmailCustomerAccount(email, name) {
 // Get all menu items
 router.get('/menu', async (req, res) => {
     try {
+        await ensureSeasonalMenuItems();
         const result = await db.query(`
             SELECT
                 id,
@@ -263,6 +355,7 @@ router.get('/menu', async (req, res) => {
 // Manager menu catalog (includes unavailable items)
 router.get('/menu/all', async (req, res) => {
     try {
+        await ensureSeasonalMenuItems();
         const result = await db.query(`
             SELECT
                 id,
