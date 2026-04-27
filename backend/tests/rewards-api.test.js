@@ -1,16 +1,25 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const path = require('node:path');
+
+const backendRoot = path.resolve(__dirname, '..');
+const serverPath = path.join(backendRoot, 'server.js');
+const apiRoutesPath = path.join(backendRoot, 'routes', 'api.js');
+const authRoutesPath = path.join(backendRoot, 'routes', 'auth.js');
+const dbConfigPath = path.join(backendRoot, 'db', 'config.js');
+const customerSessionPath = path.join(backendRoot, 'lib', 'customerSession.js');
+const googleIdTokenPath = path.join(backendRoot, 'lib', 'googleIdToken.js');
 
 function loadAppWithMocks({ dbResponses, customerId = null }) {
   process.env.VERCEL = '1';
 
   const modulePaths = [
-    '/Users/shrutwik/Desktop/project3-team_42/backend/server.js',
-    '/Users/shrutwik/Desktop/project3-team_42/backend/routes/api.js',
-    '/Users/shrutwik/Desktop/project3-team_42/backend/routes/auth.js',
-    '/Users/shrutwik/Desktop/project3-team_42/backend/db/config.js',
-    '/Users/shrutwik/Desktop/project3-team_42/backend/lib/customerSession.js',
-    '/Users/shrutwik/Desktop/project3-team_42/backend/lib/googleIdToken.js',
+    serverPath,
+    apiRoutesPath,
+    authRoutesPath,
+    dbConfigPath,
+    customerSessionPath,
+    googleIdTokenPath,
   ];
 
   for (const mod of modulePaths) {
@@ -46,10 +55,10 @@ function loadAppWithMocks({ dbResponses, customerId = null }) {
     async end() {},
   };
 
-  require.cache[require.resolve('/Users/shrutwik/Desktop/project3-team_42/backend/db/config.js')] = {
+  require.cache[require.resolve(dbConfigPath)] = {
     exports: db,
   };
-  require.cache[require.resolve('/Users/shrutwik/Desktop/project3-team_42/backend/lib/customerSession.js')] = {
+  require.cache[require.resolve(customerSessionPath)] = {
     exports: {
       tryGetCustomerIdFromAuthHeader() {
         return customerId;
@@ -62,7 +71,7 @@ function loadAppWithMocks({ dbResponses, customerId = null }) {
       },
     },
   };
-  require.cache[require.resolve('/Users/shrutwik/Desktop/project3-team_42/backend/lib/googleIdToken.js')] = {
+  require.cache[require.resolve(googleIdTokenPath)] = {
     exports: {
       async verifyGoogleCredential() {
         return {
@@ -75,7 +84,7 @@ function loadAppWithMocks({ dbResponses, customerId = null }) {
     },
   };
 
-  const app = require('/Users/shrutwik/Desktop/project3-team_42/backend/server.js');
+  const app = require(serverPath);
   return { app, db };
 }
 
