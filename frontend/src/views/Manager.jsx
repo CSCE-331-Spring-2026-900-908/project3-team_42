@@ -719,9 +719,9 @@ export default function Manager() {
   if (!user) {
     if (!googleClientId) {
       return (
-        <div className="min-h-screen bg-gradient-to-br from-sky-600 to-blue-700 flex flex-col items-center justify-center space-y-6 px-4">
-          <h1 className="text-3xl font-extrabold text-white">Manager Access</h1>
-          <p className="text-gray-700 text-lg max-w-xl text-center">
+        <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center space-y-6 px-4">
+          <h1 className="text-3xl font-black text-stone-900 tracking-tight">Manager Access</h1>
+          <p className="text-stone-500 text-lg max-w-xl text-center">
             Google OAuth is not configured. Set <code>VITE_GOOGLE_CLIENT_ID</code> in{' '}
             <code>frontend/.env.local</code>, then restart the dev server.
           </p>
@@ -730,26 +730,26 @@ export default function Manager() {
     }
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-600 to-blue-700 flex flex-col items-center justify-center px-4">
+      <div className="min-h-screen bg-[#faf9f7] flex flex-col items-center justify-center px-4">
         <div className="w-full max-w-md">
           <div className="mb-8 text-center">
-            <img src="/logo.png" alt="Reveille Boba" className="mx-auto mb-4 h-20 w-20 object-contain drop-shadow-lg" />
-            <h1 id="main-content" className="text-4xl font-extrabold text-white tracking-tight">Manager Access</h1>
-            <p className="mt-2 text-sky-100 text-base">Sign in with your authorized Google account to continue.</p>
+            <img src="/logo.png" alt="Reveille Boba" className="mx-auto mb-4 h-20 w-20 object-contain drop-shadow-sm" />
+            <h1 id="main-content" className="text-4xl font-black text-stone-900 tracking-tight">Manager Access</h1>
+            <p className="mt-2 text-stone-500 text-base font-medium">Sign in with your authorized account to continue.</p>
           </div>
-          <div className="bg-white/95 backdrop-blur rounded-2xl shadow-2xl p-8 border border-white/40">
-            <div className="mb-6 grid grid-cols-3 gap-3 text-center text-xs text-gray-500">
-              <div className="rounded-lg bg-sky-50 border border-sky-100 p-3">
-                <p className="text-lg mb-1">📊</p>
-                <p className="font-semibold text-blue-700">Reports</p>
+          <div className="bg-white rounded-3xl shadow-xl p-8 border border-stone-200">
+            <div className="mb-8 grid grid-cols-3 gap-3 text-center text-xs text-stone-500">
+              <div className="rounded-xl bg-stone-50 border border-stone-100 p-4 transition hover:bg-stone-100">
+                <p className="text-2xl mb-2">📊</p>
+                <p className="font-bold text-stone-800">Reports</p>
               </div>
-              <div className="rounded-lg bg-sky-50 border border-sky-100 p-3">
-                <p className="text-lg mb-1">👥</p>
-                <p className="font-semibold text-blue-700">Staff</p>
+              <div className="rounded-xl bg-stone-50 border border-stone-100 p-4 transition hover:bg-stone-100">
+                <p className="text-2xl mb-2">👥</p>
+                <p className="font-bold text-stone-800">Staff</p>
               </div>
-              <div className="rounded-lg bg-sky-50 border border-sky-100 p-3">
-                <p className="text-lg mb-1">🏪</p>
-                <p className="font-semibold text-blue-700">Operations</p>
+              <div className="rounded-xl bg-stone-50 border border-stone-100 p-4 transition hover:bg-stone-100">
+                <p className="text-2xl mb-2">🏪</p>
+                <p className="font-bold text-stone-800">Operations</p>
               </div>
             </div>
             <div className="flex justify-center">
@@ -768,27 +768,27 @@ export default function Manager() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center">
-      <header className="bg-gradient-to-r from-sky-600 to-blue-700 text-white w-full p-4 shadow-lg flex justify-between items-center px-8">
+      <header className="bg-white border-b border-stone-200 text-stone-900 w-full p-4 shadow-sm flex justify-between items-center px-8">
         <div className="flex items-center gap-4">
           <button 
             onClick={() => navigate(-1)} 
-            className="p-2 hover:bg-sky-700 rounded transition"
+            className="p-2 hover:bg-stone-100 rounded transition"
             aria-label="Back"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
             </svg>
           </button>
-          <h1 className="text-2xl font-bold">Manager Dashboard</h1>
+          <h1 className="text-2xl font-black tracking-tight">Manager Dashboard</h1>
         </div>
         <div className="flex items-center space-x-6">
           <div className="flex items-center space-x-2">
-            <img src={user.picture} alt="Profile" className="w-8 h-8 rounded-full" />
-            <span className="text-sky-200">Welcome, {user.name}</span>
+            <img src={user.picture} alt="Profile" className="w-8 h-8 rounded-full border border-stone-200" />
+            <span className="text-stone-600 font-medium">Welcome, {user.name}</span>
           </div>
           <button
             onClick={() => setUser(null)}
-            className="hover:bg-sky-700 px-4 py-2 rounded-lg font-semibold bg-white/20 shadow-sm border border-white/30 transition text-white text-sm"
+            className="hover:bg-stone-100 px-4 py-2 rounded-lg font-semibold bg-white shadow-sm border border-stone-200 transition text-stone-700 text-sm"
           >
             Logout
           </button>
@@ -798,7 +798,7 @@ export default function Manager() {
       <main id="main-content" className="p-6 w-full max-w-7xl">
         {/* Tab navigation */}
         <div className="mb-6 overflow-x-auto">
-          <div className="flex gap-1.5 min-w-max bg-white border border-blue-100 rounded-xl p-1.5 shadow-sm" role="tablist" aria-label="Manager sections">
+          <div className="flex gap-1.5 min-w-max bg-white border border-stone-200 rounded-xl p-1.5 shadow-sm" role="tablist" aria-label="Manager sections">
             {[
               { key: 'reports',    icon: '📊', label: 'Reports' },
               { key: 'inventory',  icon: '📦', label: 'Inventory' },
@@ -818,10 +818,10 @@ export default function Manager() {
                 aria-selected={activeTab === key}
                 aria-controls="tab-panel-main"
                 onClick={() => setActiveTab(key)}
-                className={`flex items-center gap-1.5 min-h-[40px] px-4 py-2 text-sm font-semibold rounded-lg transition-all ${
+                className={`flex items-center gap-1.5 min-h-[40px] px-4 py-2 text-sm font-semibold rounded-full transition-all ${
                   activeTab === key
-                    ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-md'
-                    : 'text-blue-700 hover:bg-sky-50 bg-transparent'
+                    ? 'bg-stone-800 text-white shadow-md'
+                    : 'text-stone-500 hover:text-stone-900 hover:bg-stone-100 bg-transparent'
                 }`}
               >
                 <span aria-hidden="true">{icon}</span>
@@ -831,7 +831,7 @@ export default function Manager() {
           </div>
         </div>
 
-        <div id="tab-panel-main" role="tabpanel" className="bg-white p-8 rounded-xl shadow-sm min-h-[500px] border border-blue-100">
+        <div id="tab-panel-main" role="tabpanel" className="bg-white p-8 rounded-xl shadow-sm min-h-[500px] border border-stone-200">
           {activeTab === 'inventory' && (
             <>
               <div className="mb-6 flex items-center justify-between gap-4">
@@ -842,7 +842,7 @@ export default function Manager() {
                 <button
                   type="button"
                   onClick={fetchInventory}
-                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition"
                 >
                   Refresh
                 </button>
@@ -859,7 +859,7 @@ export default function Manager() {
                   <table className="min-w-full text-left border-collapse">
                     <caption className="sr-only">Store inventory quantities and restock thresholds</caption>
                     <thead>
-                      <tr className="border-b-2 border-blue-100 bg-sky-50/60">
+                      <tr className="border-b-2 border-stone-200 bg-stone-50">
                         <th scope="col" className="p-3 font-semibold text-gray-700">
                           Item
                         </th>
@@ -909,7 +909,7 @@ export default function Manager() {
                 <button
                   type="button"
                   onClick={fetchOrderHistory}
-                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition"
                 >
                   Refresh
                 </button>
@@ -928,12 +928,12 @@ export default function Manager() {
               {orderHistory.length > 0 && (
                 <div className="space-y-4">
                   {orderHistory.map((order) => (
-                    <section key={order.id} className="rounded-xl border border-blue-100 bg-sky-50/40 p-4">
+                    <section key={order.id} className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="font-bold text-gray-900">
                           Order #{order.id} <span className="text-sm text-gray-500">({order.status})</span>
                         </p>
-                        <p className="font-semibold text-blue-800">{formatCurrency(order.total_amount)}</p>
+                        <p className="font-semibold text-stone-900">{formatCurrency(order.total_amount)}</p>
                       </div>
                       <div className="mt-2 grid grid-cols-1 gap-2 text-sm text-gray-600 sm:grid-cols-2 lg:grid-cols-4">
                         <p>Created: {formatDateTime(order.created_at)}</p>
@@ -990,7 +990,7 @@ export default function Manager() {
                 <button
                   type="button"
                   onClick={fetchMenuCatalog}
-                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition"
                 >
                   Refresh
                 </button>
@@ -1063,7 +1063,7 @@ export default function Manager() {
                     type="button"
                     onClick={createMenuItem}
                     disabled={menuSavingId === 'new'}
-                    className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600 disabled:opacity-60"
+                    className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700 disabled:opacity-60"
                   >
                     {menuSavingId === 'new' ? 'Adding…' : 'Add Item'}
                   </button>
@@ -1139,7 +1139,7 @@ export default function Manager() {
                           type="button"
                           onClick={() => saveMenuItem(item.id)}
                           disabled={menuSavingId === item.id}
-                          className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600 disabled:opacity-60"
+                          className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700 disabled:opacity-60"
                         >
                           {menuSavingId === item.id ? 'Saving…' : 'Save'}
                         </button>
@@ -1172,7 +1172,7 @@ export default function Manager() {
                 <button
                   type="button"
                   onClick={fetchEmployees}
-                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition"
                 >
                   Refresh
                 </button>
@@ -1215,7 +1215,7 @@ export default function Manager() {
                     type="button"
                     onClick={addEmployee}
                     disabled={employeeActionId === 'new'}
-                    className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600 disabled:opacity-60"
+                    className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700 disabled:opacity-60"
                   >
                     {employeeActionId === 'new' ? 'Adding…' : 'Add Employee'}
                   </button>
@@ -1261,7 +1261,7 @@ export default function Manager() {
                               type="button"
                               onClick={() => reactivateEmployee(emp.id)}
                               disabled={employeeActionId === emp.id}
-                              className="rounded bg-blue-700 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-600 disabled:opacity-60"
+                              className="rounded bg-stone-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-stone-700 disabled:opacity-60"
                             >
                               Reactivate
                             </button>
@@ -1291,7 +1291,7 @@ export default function Manager() {
                     fetchShifts();
                     fetchLaborReport();
                   }}
-                  className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition"
+                  className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition"
                 >
                   Refresh
                 </button>
@@ -1327,7 +1327,7 @@ export default function Manager() {
                   <input type="time" value={newShiftDraft.start_time} onChange={(e) => setNewShiftDraft((d) => ({ ...d, start_time: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="time" value={newShiftDraft.end_time} onChange={(e) => setNewShiftDraft((d) => ({ ...d, end_time: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="text" placeholder="Role on shift" value={newShiftDraft.role} onChange={(e) => setNewShiftDraft((d) => ({ ...d, role: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <button type="button" onClick={addShift} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">
+                  <button type="button" onClick={addShift} className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">
                     Add Shift
                   </button>
                 </div>
@@ -1422,7 +1422,7 @@ export default function Manager() {
                     <p className="text-sm text-gray-500 mt-0.5">Low-stock alerts, inventory adjustments, suppliers, and purchase orders.</p>
                   </div>
                 </div>
-                <button type="button" onClick={fetchOperations} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition">Refresh</button>
+                <button type="button" onClick={fetchOperations} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition">Refresh</button>
               </div>
               {operationsError && <p className="text-red-600 mb-4">{operationsError}</p>}
               <section className="mb-6 rounded-xl border border-gray-200 p-4">
@@ -1452,7 +1452,7 @@ export default function Manager() {
                   <select value={inventoryAdjustmentDraft.reason} onChange={(e) => setInventoryAdjustmentDraft((d) => ({ ...d, reason: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm">
                     <option value="correction">correction</option><option value="waste">waste</option><option value="spill">spill</option><option value="spoilage">spoilage</option><option value="supplier_receive">supplier_receive</option>
                   </select>
-                  <button type="button" onClick={createInventoryAdjustment} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Apply</button>
+                  <button type="button" onClick={createInventoryAdjustment} className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Apply</button>
                 </div>
                 <input type="text" placeholder="Notes" value={inventoryAdjustmentDraft.notes} onChange={(e) => setInventoryAdjustmentDraft((d) => ({ ...d, notes: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm mt-3 w-full" />
               </section>
@@ -1462,7 +1462,7 @@ export default function Manager() {
                   <input type="text" placeholder="Supplier name" value={supplierDraft.name} onChange={(e) => setSupplierDraft((d) => ({ ...d, name: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="text" placeholder="Contact name" value={supplierDraft.contact_name} onChange={(e) => setSupplierDraft((d) => ({ ...d, contact_name: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="email" placeholder="Contact email" value={supplierDraft.contact_email} onChange={(e) => setSupplierDraft((d) => ({ ...d, contact_email: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <button type="button" onClick={createSupplier} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Add Supplier</button>
+                  <button type="button" onClick={createSupplier} className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Add Supplier</button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
                   <select value={purchaseOrderDraft.supplier_id} onChange={(e) => setPurchaseOrderDraft((d) => ({ ...d, supplier_id: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm">
@@ -1473,13 +1473,13 @@ export default function Manager() {
                   </select>
                   <input type="number" step="0.01" placeholder="Qty" value={purchaseOrderDraft.quantity} onChange={(e) => setPurchaseOrderDraft((d) => ({ ...d, quantity: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="date" value={purchaseOrderDraft.expected_date} onChange={(e) => setPurchaseOrderDraft((d) => ({ ...d, expected_date: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
-                  <button type="button" onClick={createPurchaseOrder} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Create PO</button>
+                  <button type="button" onClick={createPurchaseOrder} className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Create PO</button>
                 </div>
                 <div className="mt-4 space-y-2">
                   {purchaseOrders.slice(0, 8).map((po) => (
                     <div key={po.id} className="flex items-center justify-between rounded border border-gray-200 px-3 py-2 text-sm">
                       <span>PO #{po.id} — {po.supplier_name || 'Unknown'} — {po.status}</span>
-                      {po.status !== 'received' && <button type="button" onClick={() => receivePurchaseOrder(po.id)} className="rounded bg-blue-700 px-3 py-1 text-xs font-bold text-white hover:bg-blue-600">Receive</button>}
+                      {po.status !== 'received' && <button type="button" onClick={() => receivePurchaseOrder(po.id)} className="rounded bg-stone-800 px-3 py-1 text-xs font-bold text-white hover:bg-stone-700">Receive</button>}
                     </div>
                   ))}
                 </div>
@@ -1497,7 +1497,7 @@ export default function Manager() {
                     <p className="text-sm text-gray-500 mt-0.5">Voids, refunds, comps, discounts, and service-charge adjustments.</p>
                   </div>
                 </div>
-                <button type="button" onClick={fetchFinance} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition">Refresh</button>
+                <button type="button" onClick={fetchFinance} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition">Refresh</button>
               </div>
               {financeError && <p className="text-red-600 mb-4">{financeError}</p>}
               <section className="mb-6 rounded-xl border border-gray-200 p-4">
@@ -1511,7 +1511,7 @@ export default function Manager() {
                   <input type="number" step="0.01" placeholder="Amount" value={financeDraft.amount} onChange={(e) => setFinanceDraft((d) => ({ ...d, amount: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm" />
                   <input type="text" placeholder="Reason" value={financeDraft.reason} onChange={(e) => setFinanceDraft((d) => ({ ...d, reason: e.target.value }))} className="rounded border border-gray-200 px-3 py-2 text-sm md:col-span-2" />
                 </div>
-                <button type="button" onClick={createFinanceAdjustment} className="mt-3 rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Save Adjustment</button>
+                <button type="button" onClick={createFinanceAdjustment} className="mt-3 rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Save Adjustment</button>
               </section>
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm border-collapse">
@@ -1532,7 +1532,7 @@ export default function Manager() {
                     <p className="text-sm text-gray-500 mt-0.5">Peak hours and staffing suggestions from transaction history.</p>
                   </div>
                 </div>
-                <button type="button" onClick={fetchInsights} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition">Refresh</button>
+                <button type="button" onClick={fetchInsights} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition">Refresh</button>
               </div>
               {insightsError && <p className="text-red-600 mb-4">{insightsError}</p>}
               <section className="rounded-xl border border-gray-200 p-4">
@@ -1589,13 +1589,13 @@ export default function Manager() {
                     <p className="text-sm text-gray-500 mt-0.5">Track who changed what and export CSV snapshots.</p>
                   </div>
                 </div>
-                <button type="button" onClick={fetchAuditLogs} className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-sky-100 transition">Refresh</button>
+                <button type="button" onClick={fetchAuditLogs} className="rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-100 transition">Refresh</button>
               </div>
               {auditError && <p className="text-red-600 mb-4">{auditError}</p>}
               <div className="mb-4 flex flex-wrap gap-3">
-                <button type="button" onClick={() => exportCsv('sales')} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Export Sales CSV</button>
-                <button type="button" onClick={() => exportCsv('inventory')} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Export Inventory CSV</button>
-                <button type="button" onClick={() => exportCsv('labor')} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Export Labor CSV</button>
+                <button type="button" onClick={() => exportCsv('sales')} className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Export Sales CSV</button>
+                <button type="button" onClick={() => exportCsv('inventory')} className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Export Inventory CSV</button>
+                <button type="button" onClick={() => exportCsv('labor')} className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Export Labor CSV</button>
               </div>
               <section className="mb-6 rounded-xl border border-gray-200 p-4">
                 <h3 className="font-semibold text-gray-800 mb-3">Scheduled Exports</h3>
@@ -1624,7 +1624,7 @@ export default function Manager() {
                     className="rounded border border-gray-200 px-3 py-2 text-sm"
                     placeholder="Cadence days"
                   />
-                  <button type="button" onClick={createExportSchedule} className="rounded bg-blue-700 px-4 py-2 text-sm font-bold text-white hover:bg-blue-600">Add Schedule</button>
+                  <button type="button" onClick={createExportSchedule} className="rounded bg-stone-800 px-4 py-2 text-sm font-bold text-white hover:bg-stone-700">Add Schedule</button>
                 </div>
                 <div className="space-y-2">
                   {exportSchedules.slice(0, 30).map((s) => (
@@ -1632,7 +1632,7 @@ export default function Manager() {
                       <span>
                         #{s.id} {s.name} ({s.export_kind}) every {s.cadence_days} day(s) | next: {formatDateTime(s.next_run_at)}
                       </span>
-                      <button type="button" onClick={() => runExportSchedule(s.id)} className="rounded bg-blue-700 px-3 py-1 text-xs font-bold text-white hover:bg-blue-600">
+                      <button type="button" onClick={() => runExportSchedule(s.id)} className="rounded bg-stone-800 px-3 py-1 text-xs font-bold text-white hover:bg-stone-700">
                         Run now
                       </button>
                     </div>
@@ -1672,10 +1672,10 @@ export default function Manager() {
                     aria-selected={reportTab === key}
                     aria-controls="report-panel"
                     onClick={() => handleReportTabChange(key)}
-                    className={`min-h-[38px] px-4 py-1.5 text-sm font-semibold rounded-lg transition-all ${
+                    className={`min-h-[38px] px-4 py-1.5 text-sm font-semibold rounded-full transition-all ${
                       reportTab === key
-                        ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow'
-                        : 'text-blue-700 hover:bg-sky-50'
+                        ? 'bg-gradient-to-r from-stone-800 to-stone-900 text-white shadow'
+                        : 'text-stone-800 hover:bg-stone-50'
                     }`}
                   >
                     {label}
@@ -1683,9 +1683,9 @@ export default function Manager() {
                 ))}
               </div>
 
-              <div id="report-panel" role="tabpanel" className="bg-white border border-blue-100 rounded-xl p-6 shadow-sm">
+              <div id="report-panel" role="tabpanel" className="bg-white border border-stone-200 rounded-xl p-6 shadow-sm">
                 {feedback && (
-                  <p className={`mb-4 font-medium ${feedback.includes('No') ? 'text-amber-700' : 'text-blue-800'}`}>
+                  <p className={`mb-4 font-medium ${feedback.includes('No') ? 'text-amber-700' : 'text-stone-900'}`}>
                     {feedback}
                   </p>
                 )}
@@ -1721,7 +1721,7 @@ export default function Manager() {
                       <button
                         type="button"
                         onClick={openProductUsage}
-                        className="mt-1 rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-blue-600 transition"
+                        className="mt-1 rounded-xl bg-stone-800 px-5 py-3 text-sm font-bold text-white shadow hover:bg-stone-700 transition"
                       >
                         Open Product Usage Graph
                       </button>
@@ -1738,7 +1738,7 @@ export default function Manager() {
                     <button
                       type="button"
                       onClick={openXReport}
-                      className="rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-blue-600 transition"
+                      className="rounded-xl bg-stone-800 px-5 py-3 text-sm font-bold text-white shadow hover:bg-stone-700 transition"
                     >
                       Open X-Report Chart
                     </button>
@@ -1770,7 +1770,7 @@ export default function Manager() {
                       <button
                         type="button"
                         onClick={runZReport}
-                        className="mt-1 rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-blue-600 transition"
+                        className="mt-1 rounded-xl bg-stone-800 px-5 py-3 text-sm font-bold text-white shadow hover:bg-stone-700 transition"
                       >
                         Run Z-Report
                       </button>
@@ -1809,7 +1809,7 @@ export default function Manager() {
                       <button
                         type="button"
                         onClick={openSalesByItem}
-                        className="mt-1 rounded-xl bg-blue-700 px-5 py-3 text-sm font-bold text-white shadow hover:bg-blue-600 transition"
+                        className="mt-1 rounded-xl bg-stone-800 px-5 py-3 text-sm font-bold text-white shadow hover:bg-stone-700 transition"
                       >
                         Open Sales Report
                       </button>
