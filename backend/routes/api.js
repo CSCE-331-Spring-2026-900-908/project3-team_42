@@ -19,6 +19,21 @@ const SEASONAL_MENU_ITEMS = [
     { name: 'Rose Garden Refresher', defaultPrice: 6.25 },
 ];
 
+const SPECIALTY_MENU_REPLACEMENTS = [
+    {
+        oldName: 'Classic Tea',
+        name: 'Sparkling Yuzu Jasmine Elixir',
+        defaultPrice: 5.75,
+        description: 'Premium specialty tea with bright citrus and jasmine notes.',
+    },
+    {
+        oldName: 'Honey Tea',
+        name: 'Honey Citrus Zen Brew',
+        defaultPrice: 5.95,
+        description: 'House specialty tea with floral honey and refreshing citrus.',
+    },
+];
+
 function calculateRewardPoints(items) {
     return (items || []).reduce((sum, item) => {
         const quantity = Number(item.quantity || 0);
@@ -151,6 +166,76 @@ async function ensureSeasonalMenuItems() {
     }
 
     seasonalMenuReadyPromise = (async () => {
+        // Keep Specialty category aligned with premium offerings.
+        for (const specialty of SPECIALTY_MENU_REPLACEMENTS) {
+            await db.query(
+                `
+                UPDATE menu_items
+                SET
+                    name = $1,
+                    description = $2,
+                    category = 'Specialty',
+                    default_price = $3,
+                    is_available = TRUE
+                WHERE LOWER(name) = $4
+                `,
+                [
+                    specialty.name,
+                    specialty.description,
+                    specialty.defaultPrice,
+                    specialty.oldName.toLowerCase(),
+                ]
+            );
+        }
+
+        const specialtyNames = SPECIALTY_MENU_REPLACEMENTS.map((item) => item.name);
+        const specialtyExistingRes = await db.query(
+            `SELECT id, name
+             FROM menu_items
+             WHERE LOWER(name) = ANY($1::text[])`,
+            [specialtyNames.map((name) => name.toLowerCase())]
+        );
+        const specialtyByName = new Map(
+            specialtyExistingRes.rows.map((row) => [String(row.name || '').toLowerCase(), Number(row.id)])
+        );
+
+        for (const specialty of SPECIALTY_MENU_REPLACEMENTS) {
+            const normalizedName = specialty.name.toLowerCase();
+            if (!specialtyByName.has(normalizedName)) {
+                const insertRes = await db.query(
+                    `
+                    INSERT INTO menu_items
+                    (name, description, category, default_price, discount_percent, image_url, is_available)
+                    VALUES ($1, $2, 'Specialty', $3, 0, $4, TRUE)
+                    RETURNING id
+                    `,
+                    [specialty.name, specialty.description, specialty.defaultPrice, '/images/placeholder.png']
+                );
+                specialtyByName.set(normalizedName, Number(insertRes.rows[0].id));
+            }
+        }
+
+        for (const specialty of SPECIALTY_MENU_REPLACEMENTS) {
+            const productId = specialtyByName.get(specialty.name.toLowerCase());
+            if (!productId) continue;
+
+            const inventoryIds = [11, 12, 2]; // cup, straw, tea base
+            const specialtyName = specialty.name.toLowerCase();
+            if (specialtyName.includes('jasmine')) inventoryIds.push(10);
+            if (specialtyName.includes('honey')) inventoryIds.push(8);
+
+            for (const inventoryId of [...new Set(inventoryIds)]) {
+                await db.query(
+                    `
+                    INSERT INTO ProductInventory (ProductID, InventoryID)
+                    VALUES ($1, $2)
+                    ON CONFLICT DO NOTHING
+                    `,
+                    [productId, inventoryId]
+                );
+            }
+        }
+
         const seasonalNames = SEASONAL_MENU_ITEMS.map((item) => item.name);
         const existingRes = await db.query(
             `SELECT id, name

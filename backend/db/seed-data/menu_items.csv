@@ -9,8 +9,8 @@ id,name,description,category,default_price,discount_percent,image_url,is_availab
 8,Mango Green Milk Tea,Delicious Mango Green Milk Tea,Milk Tea,5.25,0,/images/placeholder.png,true
 9,Golden Retriever,Delicious Golden Retriever,Milk Tea,5.75,0,/images/placeholder.png,true
 10,Coconut Pearl Milk Tea,Delicious Coconut Pearl Milk Tea,Milk Tea,5.5,0,/images/placeholder.png,true
-11,Classic Tea,Delicious Classic Tea,Specialty,4,0,/images/placeholder.png,true
-12,Honey Tea,Delicious Honey Tea,Specialty,4.5,0,/images/placeholder.png,true
+11,Sparkling Yuzu Jasmine Elixir,Premium specialty tea with bright citrus and jasmine notes.,Specialty,5.75,0,/images/placeholder.png,true
+12,Honey Citrus Zen Brew,House specialty tea with floral honey and refreshing citrus.,Specialty,5.95,0,/images/placeholder.png,true
 13,Mango Green Tea,Delicious Mango Green Tea,Fruit Tea,4.75,0,/images/placeholder.png,true
 14,Passion Chess,Delicious Passion Chess,Fruit Tea,5.25,0,/images/placeholder.png,true
 15,Berry Lychee Burst,Delicious Berry Lychee Burst,Fruit Tea,5.5,0,/images/placeholder.png,true

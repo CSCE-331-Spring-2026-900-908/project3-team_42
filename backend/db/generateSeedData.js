@@ -122,8 +122,8 @@ function buildMenuItems() {
     { name: 'Mango Green Milk Tea', category: 'Milk Tea', default_price: 5.25 },
     { name: 'Golden Retriever', category: 'Milk Tea', default_price: 5.75 },
     { name: 'Coconut Pearl Milk Tea', category: 'Milk Tea', default_price: 5.50 },
-    { name: 'Classic Tea', category: 'Specialty', default_price: 4.00 },
-    { name: 'Honey Tea', category: 'Specialty', default_price: 4.50 },
+    { name: 'Sparkling Yuzu Jasmine Elixir', category: 'Specialty', default_price: 5.75 },
+    { name: 'Honey Citrus Zen Brew', category: 'Specialty', default_price: 5.95 },
   
     // Fruity Beverage & Non-Caffeinated
     { name: 'Mango Green Tea', category: 'Fruit Tea', default_price: 4.75 },
