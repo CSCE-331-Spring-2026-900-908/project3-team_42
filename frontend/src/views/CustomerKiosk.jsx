@@ -57,6 +57,7 @@ function defaultKioskCopy() {
     sugar50: '50%',
     sugar75: '75%',
     sugar100: 'Normal 100%',
+    sugar125: 'Extra Sweet 125%',
     iceNone: 'No ice',
     iceLight: 'Light ice',
     iceRegular: 'Regular ice',
@@ -665,8 +666,8 @@ export default function CustomerKiosk() {
       {/* Customization Modal */}
       {customizingItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="mb-6 flex items-start justify-between">
+          <div className="flex max-h-[94vh] w-full max-w-2xl flex-col rounded-3xl bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between">
               <div className="flex items-center gap-4">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-stone-100 shadow-sm">
                   <DrinkImage
@@ -686,22 +687,23 @@ export default function CustomerKiosk() {
               </button>
             </div>
 
-            <div className="space-y-6">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Sweetness</h3>
-                <div className="flex flex-wrap gap-2">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Sweetness</h3>
+                <div className="grid grid-cols-3 gap-2">
                   {[
                     { value: '0%', label: copy.sugar0 },
                     { value: '25%', label: copy.sugar25 },
                     { value: '50%', label: copy.sugar50 },
                     { value: '75%', label: copy.sugar75 },
                     { value: 'Normal 100%', label: copy.sugar100 },
+                    { value: '125%', label: copy.sugar125 },
                   ].map(({ value, label }) => {
                     return (
                       <button
                         key={value}
                         onClick={() => setSweetness(value)}
-                        className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${sweetness === value ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                        className={`rounded-xl border px-2.5 py-2 text-sm font-bold transition ${sweetness === value ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                       >
                         {label}
                       </button>
@@ -711,7 +713,7 @@ export default function CustomerKiosk() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">{copy.sizeLabel}</h3>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">{copy.sizeLabel}</h3>
                 <div className="flex flex-wrap gap-2">
                   {SIZE_OPTIONS.map((option) => (
                     <button
@@ -727,7 +729,7 @@ export default function CustomerKiosk() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Temperature</h3>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Temperature</h3>
                 <button
                   type="button"
                   onClick={handleHotToggle}
@@ -741,7 +743,7 @@ export default function CustomerKiosk() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Ice Level</h3>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Ice Level</h3>
                 <div className="flex flex-wrap gap-2">
                   {['no ice', 'light ice', 'regular ice', 'extra ice'].map(level => (
                     <button
@@ -758,11 +760,11 @@ export default function CustomerKiosk() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {getToppingOptions().map((topping) => {
                     return (
-                      <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition ${selectedToppings.includes(topping.name) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                      <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 py-2 transition ${selectedToppings.includes(topping.name) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                         <span className="text-sm font-medium leading-tight text-slate-800">{topping.name}</span>
                         <input
                           type="checkbox"
@@ -777,10 +779,10 @@ export default function CustomerKiosk() {
               </div>
             </div>
 
-            <div className="mt-8">
+            <div className="mt-4 shrink-0">
               <button
                 onClick={handleCustomizationConfirm}
-                className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
+                className="w-full rounded-2xl bg-[#93c5fd] py-3 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
               >
                 Add — <span className="tabular-nums">${calculateCustomizedDrinkPrice({
                   basePrice: getBasePrice(customizingItem),
