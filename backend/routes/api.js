@@ -16,6 +16,54 @@ function calculateRewardPoints(items) {
     }, 0);
 }
 
+function roundCurrency(value) {
+    return Number(Number(value || 0).toFixed(2));
+}
+
+function calculateRewardPricing(items, pointsBalance) {
+    const normalizedItems = Array.isArray(items) ? items : [];
+    const grossAmount = roundCurrency(
+        normalizedItems.reduce((sum, item) => sum + item.quantity * item.price, 0)
+    );
+    const canRedeemFreeBoba = Number(pointsBalance || 0) >= BOBAS_PER_FREE_REWARD && normalizedItems.length > 0;
+
+    if (!canRedeemFreeBoba) {
+        return {
+            grossAmount,
+            paidAmount: grossAmount,
+            rewardDiscountAmount: 0,
+            redeemedFreeBobaCount: 0,
+            redeemedRewardPoints: 0,
+            items: normalizedItems,
+        };
+    }
+
+    const cheapestIndex = normalizedItems.reduce((bestIndex, item, index) => {
+        if (bestIndex === -1) return index;
+        return item.price < normalizedItems[bestIndex].price ? index : bestIndex;
+    }, -1);
+
+    const rewardDiscountAmount = roundCurrency(normalizedItems[cheapestIndex]?.price || 0);
+    const pricedItems = normalizedItems.map((item, index) => {
+        if (index !== cheapestIndex) return item;
+
+        const paidLineTotal = roundCurrency(item.quantity * item.price - rewardDiscountAmount);
+        return {
+            ...item,
+            price: item.quantity > 0 ? roundCurrency(paidLineTotal / item.quantity) : 0,
+        };
+    });
+
+    return {
+        grossAmount,
+        paidAmount: roundCurrency(Math.max(0, grossAmount - rewardDiscountAmount)),
+        rewardDiscountAmount,
+        redeemedFreeBobaCount: 1,
+        redeemedRewardPoints: BOBAS_PER_FREE_REWARD,
+        items: pricedItems,
+    };
+}
+
 function buildRewardsSummary(pointsBalance) {
     const normalizedBalance = Math.max(0, Number(pointsBalance || 0));
     const freeBobaCount = Math.floor(normalizedBalance / BOBAS_PER_FREE_REWARD);
@@ -43,7 +91,26 @@ function generateOrderNumber(length = 4) {
 async function ensureCustomerRewardsSchema() {
     if (customerRewardsSchemaReady) return;
 
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS customer_accounts (
+            id SERIAL PRIMARY KEY,
+            email VARCHAR(255) NOT NULL,
+            name VARCHAR(255),
+            picture_url VARCHAR(512),
+            points_balance INT NOT NULL DEFAULT 0,
+            oauth_provider VARCHAR(50) DEFAULT 'email',
+            oauth_subject VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
     await db.query('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS points_balance INT NOT NULL DEFAULT 0');
+    await db.query('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS picture_url VARCHAR(512)');
+    await db.query("ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS oauth_provider VARCHAR(50) DEFAULT 'email'");
+    await db.query('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS oauth_subject VARCHAR(255)');
+    await db.query("ALTER TABLE customer_accounts ALTER COLUMN oauth_provider SET DEFAULT 'email'");
+    await db.query("UPDATE customer_accounts SET oauth_provider = 'email' WHERE oauth_provider IS NULL");
+    await db.query("UPDATE customer_accounts SET oauth_subject = LOWER(email) WHERE oauth_subject IS NULL AND email IS NOT NULL");
     await db.query(`
         CREATE TABLE IF NOT EXISTS points_ledger (
             id SERIAL PRIMARY KEY,
@@ -134,6 +201,38 @@ function normalizeOrderItems(rawItems) {
             };
         })
         .filter(Boolean);
+}
+
+async function findOrCreateEmailCustomerAccount(email, name) {
+    const existingResult = await db.query(
+        `SELECT id, points_balance
+         FROM customer_accounts
+         WHERE LOWER(email) = $1
+         ORDER BY id
+         LIMIT 1`,
+        [email]
+    );
+
+    const existingCustomer = existingResult.rows[0];
+    if (existingCustomer) {
+        const updatedResult = await db.query(
+            `UPDATE customer_accounts
+             SET name = COALESCE(NULLIF($2, ''), name),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $1
+             RETURNING id, points_balance`,
+            [existingCustomer.id, name]
+        );
+        return updatedResult.rows[0] || existingCustomer;
+    }
+
+    const insertedResult = await db.query(
+        `INSERT INTO customer_accounts (email, name, oauth_provider, oauth_subject)
+         VALUES ($1, $2, 'email', $1)
+         RETURNING id, points_balance`,
+        [email, name]
+    );
+    return insertedResult.rows[0];
 }
 
 // Get all menu items
@@ -539,10 +638,7 @@ router.post('/orders', async (req, res) => {
     }
 
     // Canonical source of truth for totals: derive from line items server-side.
-    const computedTotal = normalizedItems.reduce(
-        (sum, item) => sum + item.quantity * item.price,
-        0
-    );
+    let rewardPricing = calculateRewardPricing(normalizedItems, 0);
 
     try {
         if (placed_via === 'customer_kiosk' && normalizedCustomerName && normalizedCustomerEmail) {
@@ -552,30 +648,23 @@ router.post('/orders', async (req, res) => {
         await db.query('BEGIN');
 
         if (placed_via === 'customer_kiosk' && normalizedCustomerName && normalizedCustomerEmail) {
-            const customerResult = await db.query(
-                `
-                INSERT INTO customer_accounts (email, name, oauth_provider, oauth_subject)
-                VALUES ($1, $2, 'email', $1)
-                ON CONFLICT (email) DO UPDATE
-                SET name = COALESCE(NULLIF(EXCLUDED.name, ''), customer_accounts.name),
-                    updated_at = CURRENT_TIMESTAMP
-                RETURNING id, points_balance
-                `,
-                [normalizedCustomerEmail, normalizedCustomerName]
-            );
-            const customer = customerResult.rows[0];
+            const customer = await findOrCreateEmailCustomerAccount(normalizedCustomerEmail, normalizedCustomerName);
             customerAccountId = customer?.id ?? null;
             rewardsBalance = customer?.points_balance ?? null;
         }
 
-        const pointsEarned = customerAccountId ? calculateRewardPoints(normalizedItems) : 0;
+        rewardPricing = calculateRewardPricing(normalizedItems, customerAccountId ? rewardsBalance : 0);
+        const computedTotal = rewardPricing.paidAmount;
+        const pointsEarned = customerAccountId
+            ? Math.max(0, calculateRewardPoints(normalizedItems) - rewardPricing.redeemedFreeBobaCount)
+            : 0;
         const orderResult = await db.query(
             "INSERT INTO orders (cashier_id, customer_account_id, total_amount, status, points_earned) VALUES ($1, $2, $3, 'completed', $4) RETURNING id",
             [cashier_id, customerAccountId, computedTotal, pointsEarned]
         );
         const orderId = orderResult.rows[0].id;
 
-        for (const item of normalizedItems) {
+        for (const item of rewardPricing.items) {
             await db.query(
                 'INSERT INTO order_items (order_id, menu_item_id, quantity, customization, price_at_time) VALUES ($1, $2, $3, $4, $5)',
                 [orderId, item.menu_item_id, item.quantity, item.customization || null, item.price]
@@ -605,7 +694,7 @@ router.post('/orders', async (req, res) => {
             [transactionId, paymentMethod || 'unspecified', computedTotal]
         );
 
-        for (const item of normalizedItems) {
+        for (const item of rewardPricing.items) {
             await db.query(
                 'INSERT INTO TransactionItem (TransactionItemID, TransactionID, ProductID, Quantity, PriceAtPurchase) VALUES ($1, $2, $3, $4, $5)',
                 [nextTransactionItemId, transactionId, item.menu_item_id, item.quantity, item.price]
@@ -647,6 +736,24 @@ router.post('/orders', async (req, res) => {
             [transactionId, orderId]
         );
 
+        if (customerAccountId && rewardPricing.redeemedRewardPoints > 0) {
+            await db.query(
+                `INSERT INTO points_ledger (customer_account_id, activity_type, points_delta, order_id, metadata)
+                 VALUES ($1, $2, $3, $4, $5)`,
+                [
+                    customerAccountId,
+                    'reward_redemption',
+                    -rewardPricing.redeemedRewardPoints,
+                    orderId,
+                    JSON.stringify({
+                        placed_via: placed_via || 'unknown',
+                        free_boba_count: rewardPricing.redeemedFreeBobaCount,
+                        discount_amount: rewardPricing.rewardDiscountAmount,
+                    }),
+                ]
+            );
+        }
+
         if (customerAccountId && pointsEarned > 0) {
             await db.query(
                 `INSERT INTO points_ledger (customer_account_id, activity_type, points_delta, order_id, metadata)
@@ -660,13 +767,17 @@ router.post('/orders', async (req, res) => {
                 ]
             );
 
+        }
+
+        const netRewardPointsDelta = pointsEarned - rewardPricing.redeemedRewardPoints;
+        if (customerAccountId && netRewardPointsDelta !== 0) {
             const rewardsResult = await db.query(
                 `UPDATE customer_accounts
-                 SET points_balance = points_balance + $1,
+                 SET points_balance = GREATEST(0, points_balance + $1),
                      updated_at = CURRENT_TIMESTAMP
                  WHERE id = $2
                  RETURNING points_balance`,
-                [pointsEarned, customerAccountId]
+                [netRewardPointsDelta, customerAccountId]
             );
             rewardsBalance = rewardsResult.rows[0]?.points_balance ?? null;
         }
@@ -679,6 +790,10 @@ router.post('/orders', async (req, res) => {
             orderNumber: generateOrderNumber(),
             transaction_id: transactionId,
             total_amount: Number(computedTotal.toFixed(2)),
+            gross_amount: rewardPricing.grossAmount,
+            rewardDiscountAmount: rewardPricing.rewardDiscountAmount,
+            redeemedRewardPoints: rewardPricing.redeemedRewardPoints,
+            redeemedFreeBobaCount: rewardPricing.redeemedFreeBobaCount,
             pointsEarned,
             rewardsBalance: rewardsSummary.pointsBalance,
             freeBobaCount: rewardsSummary.freeBobaCount,
@@ -1142,58 +1257,8 @@ router.post('/purchase-orders/:id/receive', async (req, res) => {
 });
 
 // ----------------------------
-// Finance controls / insights / audit / export
+// Insights / audit / export
 // ----------------------------
-
-router.post('/finance/adjustments', async (req, res) => {
-    try {
-        const manager = await requireManager(req, res);
-        if (!manager) return;
-        const { order_id, transaction_id, adjustment_type, amount, reason } = req.body || {};
-        const cleanType = String(adjustment_type || '').trim().toLowerCase();
-        const allowed = new Set(['void', 'refund', 'comp', 'discount', 'service_charge']);
-        if (!allowed.has(cleanType)) return res.status(400).json({ error: 'Invalid adjustment_type.' });
-        const amt = Number(amount);
-        if (!Number.isFinite(amt) || amt < 0) return res.status(400).json({ error: 'amount must be a non-negative number.' });
-
-        const result = await db.query(
-            `
-            INSERT INTO manager_financial_adjustments
-            (transaction_id, order_id, adjustment_type, amount, reason, created_by)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING *
-            `,
-            [
-                transaction_id != null ? Number(transaction_id) : null,
-                order_id != null ? Number(order_id) : null,
-                cleanType,
-                amt,
-                reason ? String(reason) : null,
-                manager.email,
-            ]
-        );
-        await writeAudit(manager.email, 'finance.adjust', 'finance_adjustment', result.rows[0].id, { type: cleanType, amount: amt });
-        res.status(201).json(result.rows[0]);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-router.get('/finance/adjustments', async (req, res) => {
-    try {
-        const result = await db.query(
-            `
-            SELECT id, transaction_id, order_id, adjustment_type, amount, reason, created_by, created_at
-            FROM manager_financial_adjustments
-            ORDER BY created_at DESC, id DESC
-            LIMIT 300
-            `
-        );
-        res.json({ adjustments: result.rows });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
 
 router.get('/insights/peak-hours', async (req, res) => {
     try {

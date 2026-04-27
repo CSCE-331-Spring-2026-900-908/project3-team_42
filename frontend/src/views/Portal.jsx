@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { setActivePortalPath } from '../lib/portalLock';
+import { clearActivePortalPath, setActivePortalPath } from '../lib/portalLock';
 
 const modes = [
   {
@@ -41,6 +41,7 @@ const modes = [
     title: 'Menu Board',
     subtitle: 'Overhead display — read-only',
     gradient: 'from-amber-600 to-orange-700',
+    allowBackToPortal: true,
     icon: (
       <svg className="h-10 w-10 opacity-90" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -77,8 +78,15 @@ export default function Portal() {
             <Link
               key={m.to}
               to={m.to}
-              replace
-              onClick={() => setActivePortalPath(m.to)}
+              replace={!m.allowBackToPortal}
+              onClick={() => {
+                if (m.allowBackToPortal) {
+                  clearActivePortalPath();
+                  return;
+                }
+
+                setActivePortalPath(m.to);
+              }}
               className={`group relative overflow-hidden rounded-2xl bg-gradient-to-br p-8 text-white shadow-lg shadow-stone-900/10 ring-1 ring-white/10 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-stone-900/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-stone-900 focus-visible:ring-offset-2 focus-visible:ring-offset-[#fffbf7] ${m.gradient}`}
             >
               <div className="absolute -right-6 -top-6 h-32 w-32 rounded-full bg-white/10 blur-2xl transition group-hover:bg-white/15" aria-hidden="true" />

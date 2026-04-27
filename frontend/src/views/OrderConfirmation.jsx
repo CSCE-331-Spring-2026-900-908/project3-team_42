@@ -50,6 +50,9 @@ export default function OrderConfirmation() {
     navigate('/customer', { replace: true });
   };
 
+  const grossSubtotal = Number(order.grossSubtotal ?? order.subtotal ?? 0);
+  const rewardDiscountAmount = Number(order.rewardDiscountAmount || 0);
+
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(196,181,253,0.35),_transparent_34%),linear-gradient(180deg,_#fff8f3_0%,_#fff_100%)] px-4 py-8 font-[family-name:var(--font-ui)] text-stone-800 sm:px-6">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
@@ -135,8 +138,14 @@ export default function OrderConfirmation() {
             <div className="mt-6 rounded-3xl border border-stone-100 bg-stone-50 px-5 py-5">
               <div className="flex justify-between text-sm font-medium text-stone-500">
                 <span>Subtotal</span>
-                <span>{formatMoney(order.subtotal)}</span>
+                <span>{formatMoney(grossSubtotal)}</span>
               </div>
+              {rewardDiscountAmount > 0 ? (
+                <div className="mt-2 flex justify-between text-sm font-bold text-emerald-700">
+                  <span>Free boba reward</span>
+                  <span>-{formatMoney(rewardDiscountAmount)}</span>
+                </div>
+              ) : null}
               <div className="mt-2 flex justify-between text-sm font-medium text-stone-500">
                 <span>Tax</span>
                 <span>{formatMoney(order.tax)}</span>
@@ -236,11 +245,25 @@ export default function OrderConfirmation() {
             </div>
 
             <div className="mt-6 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-5">
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">This order earned</p>
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-700">
+                {order.justRedeemedFreeBoba ? 'Reward redeemed' : 'This order earned'}
+              </p>
               <div className="mt-3 flex items-end gap-3">
-                <p className="text-5xl font-black text-emerald-950">+{order.pointsEarned}</p>
-                <p className="pb-2 text-sm font-semibold text-emerald-800">reward point{order.pointsEarned === 1 ? '' : 's'}</p>
+                <p className="text-5xl font-black text-emerald-950">
+                  {order.justRedeemedFreeBoba ? formatMoney(rewardDiscountAmount) : `+${order.pointsEarned}`}
+                </p>
+                <p className="pb-2 text-sm font-semibold text-emerald-800">
+                  {order.justRedeemedFreeBoba
+                    ? `${order.redeemedFreeBobaCount || 1} free boba applied`
+                    : `reward point${order.pointsEarned === 1 ? '' : 's'}`}
+                </p>
               </div>
+              {order.justRedeemedFreeBoba ? (
+                <p className="mt-3 text-sm font-semibold text-emerald-800">
+                  We used {order.redeemedRewardPoints || BOBAS_PER_FREE_REWARD} reward points so you did not pay for this boba.
+                  {order.pointsEarned > 0 ? ` Paid drinks still earned +${order.pointsEarned} point${order.pointsEarned === 1 ? '' : 's'}.` : ''}
+                </p>
+              ) : null}
               {order.justUnlockedFreeBoba ? (
                 <p className="mt-3 text-sm font-semibold text-emerald-800">
                   Nice. This order unlocked a new free boba.
