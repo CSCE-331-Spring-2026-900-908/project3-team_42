@@ -3,10 +3,22 @@ import { useNavigate } from 'react-router-dom';
 import api from '../api';
 import { loadActiveKioskCart, saveActiveKioskCart } from '../lib/kioskCart';
 
+const LANGUAGE_OPTIONS = [
+  { code: 'en', label: 'English (Default)' },
+  { code: 'es', label: 'Spanish' },
+  { code: 'fr', label: 'French' },
+  { code: 'de', label: 'German' },
+  { code: 'zh-CN', label: 'Chinese (Simplified)' },
+  { code: 'ja', label: 'Japanese' },
+  { code: 'ko', label: 'Korean' },
+  { code: 'pt', label: 'Portuguese' },
+];
+
 function defaultKioskCopy() {
   return {
     welcome: 'Welcome to Reveille Boba',
-    translateBtn: 'Translate to Spanish',
+    translateBtn: 'Translate',
+    subtitle: 'Pick your favorite drink',
     addToOrder: 'Add to order',
     total: 'Total',
     checkout: 'Checkout',
@@ -16,14 +28,87 @@ function defaultKioskCopy() {
     stepPay: 'Checkout',
     emptyCart: 'Tap a drink to start your order',
     assistantHint: 'Ask about flavors, ice, or toppings',
+    catAll: 'All',
+    catFruitTea: 'Fruit Tea',
+    catMatcha: 'Matcha',
+    catMilkTea: 'Milk Tea',
+    catSlush: 'Slush',
+    catSpecialty: 'Specialty',
+    weatherHot: 'Hot outside - cool down with these!',
+    weatherCold: 'Chilly today - warm up with these!',
+    weatherNice: 'Nice day - try something special!',
+    customize: 'Customize',
+    sweetnessLabel: 'SWEETNESS',
+    iceLabel: 'ICE LEVEL',
+    toppingsLabel: 'TOPPINGS (+$0.50)',
+    addBtnPrefix: 'Add —',
+    sugar0: 'No Sugar 0%',
+    sugar25: '25% 25%',
+    sugar50: '50% 50%',
+    sugar75: '75% 75%',
+    sugar100: 'Normal 100%',
+    iceNone: 'No ice',
+    iceLight: 'Light ice',
+    iceRegular: 'Regular ice',
+    iceExtra: 'Extra ice',
+    topPearls: 'Pearls (Boba)',
+    topLychee: 'Lychee Jelly',
+    topCrystal: 'Crystal Boba',
+    topIceCream: 'Ice Cream',
+    topCoffeeJelly: 'Coffee Jelly',
+    topHoneyJelly: 'Honey Jelly',
+    topMango: 'Mango Popping Boba',
+    topCreama: 'Creama',
+    topPudding: 'Pudding',
+    topStrawberry: 'Strawberry Popping Boba',
   };
+}
+
+const formatChatMsg = (text) => {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br/>');
+};
+
+function DrinkImage({ item, baseMenuItems, className, fallbackClassName }) {
+  const [error, setError] = useState(false);
+  const getCategoryFilename = (category) => {
+    const cat = (category || 'Specialty').toLowerCase();
+    if (cat.includes('fruit')) return 'fruit-tea.png';
+    if (cat.includes('matcha')) return 'matcha-tea.png';
+    if (cat.includes('milk')) return 'milk-tea.png';
+    if (cat.includes('slush')) return 'slush.png';
+    return 'specialty.png';
+  };
+
+  const originalItem = baseMenuItems?.find(b => b.id === item.id) || item;
+  const isPlaceholder = item.image_url === '/images/placeholder.png' || item.image_url === 'null';
+  const imageSrc = (!item.image_url || isPlaceholder) 
+    ? `/menu-images/${getCategoryFilename(originalItem.category)}` 
+    : item.image_url;
+
+  if (error) {
+    return <span className={fallbackClassName || "text-5xl opacity-30"} aria-hidden="true">{'\u{1F9CB}'}</span>;
+  }
+
+  return (
+    <img
+      src={imageSrc}
+      alt={item.name}
+      className={className || "h-full w-full object-cover transition group-hover:scale-105"}
+      onError={() => setError(true)}
+    />
+  );
 }
 
 export default function CustomerKiosk() {
   const navigate = useNavigate();
 
   const [menuItems, setMenuItems] = useState([]);
+  const [baseMenuItems, setBaseMenuItems] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('All');
+
   const [customizingItem, setCustomizingItem] = useState(null);
   const [sweetness, setSweetness] = useState('Normal 100%');
   const [ice, setIce] = useState('Regular');
@@ -39,12 +124,18 @@ export default function CustomerKiosk() {
   const [isChatting, setIsChatting] = useState(false);
   const chatEndRef = useRef(null);
   const chatPanelRef = useRef(null);
+  const translateMenuRef = useRef(null);
+  const [translateMenuOpen, setTranslateMenuOpen] = useState(false);
 
   const [copy, setCopy] = useState(() => defaultKioskCopy());
+  const getCatName = useCallback((cat) => { if(cat === 'All') return copy.catAll; if(cat === 'Fruit Tea') return copy.catFruitTea; if(cat === 'Matcha') return copy.catMatcha; if(cat === 'Milk Tea') return copy.catMilkTea; if(cat === 'Slush') return copy.catSlush; if(cat === 'Specialty') return copy.catSpecialty; return cat; }, [copy]);
   const getBasePrice = (item) => Number(item?.effective_price ?? item?.default_price ?? 0);
 
   useEffect(() => {
-    api.get('/menu').then((res) => setMenuItems(res.data)).catch(console.error);
+    api.get('/menu').then((res) => {
+      setMenuItems(res.data);
+      setBaseMenuItems(res.data);
+    }).catch(console.error);
     api.get('/weather').then((res) => setWeather(res.data)).catch(() => setWeather(null));
   }, []);
 
@@ -63,6 +154,15 @@ export default function CustomerKiosk() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [chatOpen]);
+
+  useEffect(() => {
+    const onPointerDown = (e) => {
+      if (!translateMenuRef.current) return;
+      if (!translateMenuRef.current.contains(e.target)) setTranslateMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
 
   const getChatFocusable = useCallback(() => {
     if (!chatPanelRef.current) return [];
@@ -99,7 +199,13 @@ export default function CustomerKiosk() {
   }, [menuItems]);
 
   const displayedItems = useMemo(() => {
-    if (selectedCategory === 'All') return menuItems;
+    if (selectedCategory === 'All') {
+      return [...menuItems].sort((a, b) => {
+        const hashA = (a.id * 137) % 251;
+        const hashB = (b.id * 137) % 251;
+        return hashA - hashB;
+      });
+    }
     return menuItems.filter(item => (item.category || 'Specialty') === selectedCategory);
   }, [menuItems, selectedCategory]);
 
@@ -109,13 +215,13 @@ export default function CustomerKiosk() {
     const forecast = (weather.shortForecast || '').toLowerCase();
     let recommended = [];
     if (temp >= 80) {
-      recommended = menuItems.filter(i => {
+      recommended = baseMenuItems.filter(i => {
         const cat = (i.category || '').toLowerCase();
         const name = (i.name || '').toLowerCase();
         return cat === 'slush' || cat === 'fruit tea' || name.includes('mango') || name.includes('lemon') || name.includes('passion') || name.includes('ice');
       });
     } else if (temp <= 55 || forecast.includes('rain') || forecast.includes('cloud')) {
-      recommended = menuItems.filter(i => {
+      recommended = baseMenuItems.filter(i => {
         const cat = (i.category || '').toLowerCase();
         const name = (i.name || '').toLowerCase();
         return cat === 'milk tea' || name.includes('taro') || name.includes('hokkaido') || name.includes('thai') || name.includes('coffee');
@@ -126,7 +232,7 @@ export default function CustomerKiosk() {
         return cat === 'specialty' || cat === 'matcha';
       });
     }
-    return recommended.slice(0, 4);
+    return recommended.slice(0, 4).map(bItem => menuItems.find(m => m.id === bItem.id) || bItem);
   }, [weather, menuItems]);
 
   const translateText = async (text, target) => {
@@ -139,34 +245,28 @@ export default function CustomerKiosk() {
     }
   };
 
-  const handleTranslateToggle = async () => {
-    if (isTranslating) return;
+  const handleLanguageSelect = async (targetLang) => {
+    if (isTranslating || !targetLang || targetLang === language) {
+      setTranslateMenuOpen(false);
+      return;
+    }
     setIsTranslating(true);
-    const targetLang = language === 'en' ? 'es' : 'en';
+    setTranslateMenuOpen(false);
 
-    if (targetLang === 'es') {
+    const baseCopy = defaultKioskCopy();
+
+    if (targetLang !== 'en') {
       try {
-        const keys = [
-          'welcome',
-          'addToOrder',
-          'total',
-          'checkout',
-          'yourOrder',
-          'stepBrowse',
-          'stepReview',
-          'stepPay',
-          'emptyCart',
-          'assistantHint',
-        ];
-        const translated = await Promise.all(keys.map((k) => translateText(copy[k], 'es')));
+        const keys = Object.keys(baseCopy);
+        const translated = await Promise.all(keys.map((k) => translateText(baseCopy[k], targetLang)));
         const nextCopy = keys.reduce((acc, k, i) => ({ ...acc, [k]: translated[i] }), {});
-        setCopy((c) => ({ ...c, ...nextCopy, translateBtn: 'Traducir al Ingles' }));
+        setCopy((c) => ({ ...c, ...nextCopy }));
 
         const translatedMenu = await Promise.all(
-          menuItems.map(async (item) => ({
+          baseMenuItems.map(async (item) => ({
             ...item,
-            name: await translateText(item.name, 'es'),
-            description: await translateText(item.description, 'es'),
+            name: await translateText(item.name, targetLang),
+            description: await translateText(item.description, targetLang),
           }))
         );
         setMenuItems(translatedMenu);
@@ -174,9 +274,8 @@ export default function CustomerKiosk() {
         console.error('Translation failed', err);
       }
     } else {
-      const res = await api.get('/menu');
-      setMenuItems(res.data);
-      setCopy(defaultKioskCopy());
+      setMenuItems(baseMenuItems);
+      setCopy(baseCopy);
     }
 
     setLanguage(targetLang);
@@ -202,21 +301,21 @@ export default function CustomerKiosk() {
     setIsChatting(false);
   };
 
-  const TOPPING_OPTIONS = [
-    { id: 'pearls_boba', name: 'Pearls (Boba)', price: 0.50 },
-    { id: 'lychee_jelly', name: 'Lychee Jelly', price: 0.50 },
-    { id: 'crystal_boba', name: 'Crystal Boba', price: 0.50 },
-    { id: 'ice_cream', name: 'Ice Cream', price: 0.50 },
-    { id: 'coffee_jelly', name: 'Coffee Jelly', price: 0.50 },
-    { id: 'honey_jelly', name: 'Honey Jelly', price: 0.50 },
-    { id: 'mango_popping_boba', name: 'Mango Popping Boba', price: 0.50 },
-    { id: 'creama', name: 'Creama', price: 0.50 },
-    { id: 'pudding', name: 'Pudding', price: 0.50 },
-    { id: 'strawberry_popping_boba', name: 'Strawberry Popping Boba', price: 0.50 },
+  const getToppingOptions = () => [
+    { id: 'pearls_boba', name: copy.topPearls, price: 0.50 },
+    { id: 'lychee_jelly', name: copy.topLychee, price: 0.50 },
+    { id: 'crystal_boba', name: copy.topCrystal, price: 0.50 },
+    { id: 'ice_cream', name: copy.topIceCream, price: 0.50 },
+    { id: 'coffee_jelly', name: copy.topCoffeeJelly, price: 0.50 },
+    { id: 'honey_jelly', name: copy.topHoneyJelly, price: 0.50 },
+    { id: 'mango_popping_boba', name: copy.topMango, price: 0.50 },
+    { id: 'creama', name: copy.topCreama, price: 0.50 },
+    { id: 'pudding', name: copy.topPudding, price: 0.50 },
+    { id: 'strawberry_popping_boba', name: copy.topStrawberry, price: 0.50 },
   ];
 
   const toggleTopping = (id) => {
-    setSelectedToppings((prev) => 
+    setSelectedToppings((prev) =>
       prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]
     );
   };
@@ -288,21 +387,21 @@ export default function CustomerKiosk() {
   const weatherLabel = useMemo(() => {
     if (!weather) return null;
     const temp = weather.temperature;
-    if (temp >= 80) return { emoji: '\u2600\uFE0F', text: 'Hot outside - cool down with these!', bg: 'bg-amber-50 border-amber-200 text-amber-800' };
-    if (temp <= 55) return { emoji: '\u{1F327}\uFE0F', text: 'Chilly today - warm up with these!', bg: 'bg-sky-50 border-sky-200 text-sky-800' };
-    return { emoji: '\u{1F324}\uFE0F', text: 'Nice day - try something special!', bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
+    if (temp >= 80) return { emoji: '\u2600\uFE0F', text: copy.weatherHot, bg: 'bg-amber-50 border-amber-200 text-amber-800' };
+    if (temp <= 55) return { emoji: '\u{1F327}\uFE0F', text: copy.weatherCold, bg: 'bg-sky-50 border-sky-200 text-sky-800' };
+    return { emoji: '\u{1F324}\uFE0F', text: copy.weatherNice, bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
   }, [weather]);
 
   return (
     <div className="flex h-screen flex-row bg-[#faf9f7] font-sans overflow-hidden text-stone-800">
-      
+
       {/* Main Left Menu Section */}
       <div className="flex flex-1 flex-col px-6 pt-5 pb-0 relative z-10">
         {/* Top Bar */}
         <header className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button 
-              onClick={() => navigate(-1)} 
+            <button
+              onClick={() => navigate(-1)}
               className="flex items-center justify-center p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
               aria-label="Back"
             >
@@ -312,13 +411,34 @@ export default function CustomerKiosk() {
             </button>
             <div>
               <h2 className="text-3xl font-extrabold text-stone-900 tracking-tight">{copy.welcome}</h2>
-              <p className="text-sm text-stone-500 mt-0.5">{language === 'es' ? 'Elige tu bebida favorita' : 'Pick your favorite drink'}</p>
+              <p className="text-sm text-stone-500 mt-0.5">{copy.subtitle}</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={handleTranslateToggle} disabled={isTranslating} className="rounded-full border border-stone-200 bg-white px-3 py-2 text-xs font-semibold text-stone-600 hover:bg-stone-50 disabled:opacity-50">
-              {isTranslating ? '...' : (language === 'es' ? 'English' : 'Espanol')}
+          <div className="relative" ref={translateMenuRef}>
+            <button
+              type="button"
+              onClick={() => setTranslateMenuOpen((v) => !v)}
+              disabled={isTranslating}
+              className="inline-flex items-center gap-2 rounded-xl bg-blue-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-600 disabled:opacity-60"
+            >
+              <span className="text-xs">A+</span>
+              <span>{isTranslating ? 'Translating...' : 'Translate'}</span>
+              <span className={`text-xs transition ${translateMenuOpen ? 'rotate-180' : ''}`}>^</span>
             </button>
+            {translateMenuOpen && (
+              <div className="absolute right-0 z-40 mt-2 max-h-72 w-56 overflow-y-auto rounded-xl border border-stone-200 bg-white py-1 shadow-lg">
+                {LANGUAGE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.code}
+                    type="button"
+                    onClick={() => handleLanguageSelect(opt.code)}
+                    className={`block w-full px-4 py-2 text-left text-sm transition hover:bg-stone-50 ${opt.code === language ? 'font-semibold text-blue-700' : 'text-stone-700'}`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </header>
 
@@ -337,7 +457,14 @@ export default function CustomerKiosk() {
                   onClick={() => handleDrinkClick(item)}
                   className="flex shrink-0 items-center gap-3 rounded-xl border border-white/60 bg-white/80 px-4 py-3 text-left transition hover:bg-white hover:shadow-sm active:scale-95"
                 >
-                  <span className="text-2xl" aria-hidden="true">{'\u{1F9CB}'}</span>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-stone-100">
+                    <DrinkImage
+                      item={item}
+                      baseMenuItems={baseMenuItems}
+                      className="h-full w-full object-cover"
+                      fallbackClassName="text-2xl opacity-50"
+                    />
+                  </div>
                   <div>
                     <p className="text-sm font-bold leading-tight text-stone-800">{item.name}</p>
                     <p className="text-xs font-medium text-stone-500">${getBasePrice(item).toFixed(2)}</p>
@@ -372,11 +499,10 @@ export default function CustomerKiosk() {
                 className="group flex flex-col items-center justify-start rounded-2xl border border-stone-200 bg-white text-center transition hover:border-stone-300 hover:shadow-md active:scale-[0.97]"
               >
                 <div className="w-full aspect-[4/3] rounded-t-2xl bg-stone-100 flex items-center justify-center overflow-hidden">
-                  {item.image_url ? (
-                    <img src={item.image_url} alt={item.name} className="h-full w-full object-cover transition group-hover:scale-105" />
-                  ) : (
-                    <span className="text-5xl opacity-30" aria-hidden="true">{'\u{1F9CB}'}</span>
-                  )}
+                  <DrinkImage
+                    item={item}
+                    baseMenuItems={baseMenuItems}
+                  />
                 </div>
                 <div className="p-4 w-full flex flex-col items-center flex-1">
                   <span className="text-[15px] font-bold leading-snug text-stone-800 line-clamp-2">
@@ -411,16 +537,28 @@ export default function CustomerKiosk() {
             <div className="space-y-3">
               {cart.map((item) => (
                 <div key={item.unique_id} className="flex flex-col rounded-xl border border-stone-100 bg-stone-50 p-3">
-                  <div className="flex justify-between items-start font-bold text-stone-800 text-[14px]">
-                    <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
-                    <span>${(item.custom_price ?? getBasePrice(item)).toFixed(2)}</span>
-                  </div>
-                  {item.customization && (
-                    <div className="text-xs text-stone-400 mt-1 leading-relaxed">
-                      S: {item.customization.sweetness} | I: {item.customization.ice}
-                      {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
+                  <div className="flex gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-stone-200">
+                      <DrinkImage
+                        item={item}
+                        baseMenuItems={baseMenuItems}
+                        className="h-full w-full object-cover"
+                        fallbackClassName="text-2xl opacity-50"
+                      />
                     </div>
-                  )}
+                    <div className="flex-1">
+                      <div className="flex justify-between items-start font-bold text-stone-800 text-[14px]">
+                        <span className="w-2/3 pr-2 leading-tight">{item.name}</span>
+                        <span>${(item.custom_price ?? getBasePrice(item)).toFixed(2)}</span>
+                      </div>
+                      {item.customization && (
+                        <div className="text-xs text-stone-400 mt-1 leading-relaxed">
+                          S: {item.customization.sweetness} | I: {item.customization.ice}
+                          {item.customization.toppings?.length > 0 && ` | +${item.customization.toppings.join(', ')}`}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                   <div className="mt-2 flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <button onClick={() => decrementLine(item.unique_id)} className="flex h-7 w-7 items-center justify-center rounded-lg bg-white text-lg font-bold text-stone-500 border border-stone-200 hover:bg-stone-100">-</button>
@@ -437,12 +575,12 @@ export default function CustomerKiosk() {
 
         <div className="px-5 py-5 shrink-0 border-t border-stone-100">
           <div className="flex justify-between text-sm font-medium text-stone-500 mb-1">
-             <span>{language === 'es' ? 'Subtotal' : 'Subtotal'}</span>
-             <span>${cartTotal.toFixed(2)}</span>
+            <span>{language === 'es' ? 'Subtotal' : 'Subtotal'}</span>
+            <span>${cartTotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm font-medium text-stone-500 mb-3">
-             <span>{language === 'es' ? 'Impuesto' : 'Tax (8.25%)'}</span>
-             <span>${(cartTotal * 0.0825).toFixed(2)}</span>
+            <span>{language === 'es' ? 'Impuesto' : 'Tax (8.25%)'}</span>
+            <span>${(cartTotal * 0.0825).toFixed(2)}</span>
           </div>
           <div className="border-t border-stone-200 pt-3 flex justify-between text-2xl font-black text-stone-900">
             <span>{copy.total}</span>
@@ -474,9 +612,8 @@ export default function CustomerKiosk() {
 
       <div
         ref={chatPanelRef}
-        className={`fixed bottom-6 right-96 mr-6 z-50 w-[380px] origin-bottom-right transition ${
-          chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
-        }`}
+        className={`fixed bottom-6 right-96 mr-6 z-50 w-[380px] origin-bottom-right transition ${chatOpen ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
+          }`}
       >
         <div className="flex max-h-[500px] flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-2xl">
           <div className="flex items-center justify-between bg-slate-900 px-5 py-4 text-white">
@@ -487,7 +624,7 @@ export default function CustomerKiosk() {
             {chatLog.length === 0 && <p className="text-center text-sm text-slate-500">{copy.assistantHint}</p>}
             {chatLog.map((msg, i) => (
               <div key={i} className={`max-w-[90%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${msg.sender === 'user' ? 'ml-auto bg-slate-800 text-white' : 'border border-slate-200 bg-white text-slate-800'}`}>
-                <span dangerouslySetInnerHTML={{ __html: msg.text.replace(/\n/g, '<br/>') }} />
+                <span dangerouslySetInnerHTML={{ __html: formatChatMsg(msg.text) }} />
               </div>
             ))}
             {isChatting && <p className="text-sm italic text-slate-400">...</p>}
@@ -507,9 +644,19 @@ export default function CustomerKiosk() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
             <div className="mb-6 flex items-start justify-between">
-              <div>
-                <h2 className="text-2xl font-black tracking-tight text-slate-900">Customize</h2>
-                <p className="font-medium text-slate-500 mt-1.5">{customizingItem.name}</p>
+              <div className="flex items-center gap-4">
+                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-stone-100 shadow-sm">
+                  <DrinkImage
+                    item={customizingItem}
+                    baseMenuItems={baseMenuItems}
+                    className="h-full w-full object-cover"
+                    fallbackClassName="text-3xl opacity-50"
+                  />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black tracking-tight text-slate-900">Customize</h2>
+                  <p className="font-medium text-slate-500 mt-1">{customizingItem.name}</p>
+                </div>
               </div>
               <button onClick={() => setCustomizingItem(null)} className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200">
                 <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
@@ -553,7 +700,7 @@ export default function CustomerKiosk() {
               <div>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
                 <div className="grid grid-cols-2 gap-2">
-                  {TOPPING_OPTIONS.map((topping) => {
+                  {getToppingOptions().map((topping) => {
                     return (
                       <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition ${selectedToppings.includes(topping.name) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                         <span className="text-sm font-medium leading-tight text-slate-800">{topping.name}</span>
