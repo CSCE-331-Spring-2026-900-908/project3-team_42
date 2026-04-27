@@ -75,6 +75,16 @@ async function withServer(app, fn) {
   }
 }
 
+async function withFixedRandom(value, fn) {
+  const originalRandom = Math.random;
+  Math.random = () => value;
+  try {
+    await fn();
+  } finally {
+    Math.random = originalRandom;
+  }
+}
+
 test('customer kiosk rewards use checkout email as a persistent database account', async () => {
   const { app, db } = loadAppWithMocks({
     customerId: null,
@@ -96,38 +106,40 @@ test('customer kiosk rewards use checkout email as a persistent database account
     ],
   });
 
-  await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer kiosk-token',
-      },
-      body: JSON.stringify({
-        cashier_id: 4,
-        total_amount: 9.73,
-        placed_via: 'customer_kiosk',
-        customer_name: 'Taylor',
-        customer_email: ' Taylor@Example.COM ',
-        items: [
-          {
-            menu_item_id: 3,
-            quantity: 2,
-            price: 4.5,
-            customization: { sweetness: '50%' },
-          },
-        ],
-      }),
-    });
+  await withFixedRandom(0, async () => {
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer kiosk-token',
+        },
+        body: JSON.stringify({
+          cashier_id: 4,
+          total_amount: 9.73,
+          placed_via: 'customer_kiosk',
+          customer_name: 'Taylor',
+          customer_email: ' Taylor@Example.COM ',
+          items: [
+            {
+              menu_item_id: 3,
+              quantity: 2,
+              price: 4.5,
+              customization: { sweetness: '50%' },
+            },
+          ],
+        }),
+      });
 
-    assert.equal(response.status, 201);
-    const body = await response.json();
-    assert.equal(body.id, 101);
-    assert.match(body.orderNumber, /^[A-Z0-9]{4}$/);
-    assert.equal(body.pointsEarned, 2);
-    assert.equal(body.rewardsBalance, 12);
-    assert.equal(body.freeBobaCount, 2);
-    assert.equal(body.pointsToNextFreeBoba, 3);
+      assert.equal(response.status, 201);
+      const body = await response.json();
+      assert.equal(body.id, 101);
+      assert.match(body.orderNumber, /^\d{4}$/);
+      assert.equal(body.pointsEarned, 2);
+      assert.equal(body.rewardsBalance, 12);
+      assert.equal(body.freeBobaCount, 2);
+      assert.equal(body.pointsToNextFreeBoba, 3);
+    });
   });
 
   const upsertCustomer = db.calls.find((call) => call.sql.includes('INSERT INTO customer_accounts'));
@@ -142,6 +154,121 @@ test('customer kiosk rewards use checkout email as a persistent database account
   const ledgerInsert = db.calls.find((call) => call.sql.includes('INSERT INTO points_ledger'));
   assert.ok(ledgerInsert, 'expected points ledger insert');
   assert.deepEqual(ledgerInsert.params.slice(0, 4), [7, 'order', 2, 101]);
+});
+
+test('signed-in kiosk checkout without name and email does not earn rewards', async () => {
+  const { app, db } = loadAppWithMocks({
+    customerId: 9,
+    dbResponses: [
+      { rows: [] },
+      { rows: [{ id: 104 }] },
+      { rows: [] },
+      { rows: [{ next_id: 503 }] },
+      { rows: [{ next_id: 903 }] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+    ],
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer kiosk-token',
+      },
+      body: JSON.stringify({
+        cashier_id: 4,
+        total_amount: 9,
+        placed_via: 'customer_kiosk',
+        items: [
+          {
+            menu_item_id: 5,
+            quantity: 2,
+            price: 4.5,
+            customization: null,
+          },
+        ],
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.pointsEarned, 0);
+    assert.equal(body.rewardsBalance, 0);
+  });
+
+  const insertOrder = db.calls.find((call) => call.sql.includes('INSERT INTO orders'));
+  assert.ok(insertOrder, 'expected order insert query');
+  assert.equal(insertOrder.params[1], null);
+  assert.equal(insertOrder.params[3], 0);
+
+  const customerUpsert = db.calls.find((call) => call.sql.includes('INSERT INTO customer_accounts'));
+  assert.equal(customerUpsert, undefined);
+
+  const ledgerInsert = db.calls.find((call) => call.sql.includes('INSERT INTO points_ledger'));
+  assert.equal(ledgerInsert, undefined);
+});
+
+test('email-only kiosk checkout does not create rewards activity', async () => {
+  const { app, db } = loadAppWithMocks({
+    customerId: null,
+    dbResponses: [
+      { rows: [] },
+      { rows: [{ id: 105 }] },
+      { rows: [] },
+      { rows: [{ next_id: 504 }] },
+      { rows: [{ next_id: 904 }] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+      { rows: [] },
+    ],
+  });
+
+  await withServer(app, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/orders`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        cashier_id: 4,
+        total_amount: 4.5,
+        placed_via: 'customer_kiosk',
+        customer_email: 'taylor@example.com',
+        items: [
+          {
+            menu_item_id: 6,
+            quantity: 1,
+            price: 4.5,
+            customization: null,
+          },
+        ],
+      }),
+    });
+
+    assert.equal(response.status, 201);
+    const body = await response.json();
+    assert.equal(body.pointsEarned, 0);
+    assert.equal(body.rewardsBalance, 0);
+  });
+
+  const customerUpsert = db.calls.find((call) => call.sql.includes('INSERT INTO customer_accounts'));
+  assert.equal(customerUpsert, undefined);
+
+  const insertOrder = db.calls.find((call) => call.sql.includes('INSERT INTO orders'));
+  assert.ok(insertOrder, 'expected order insert query');
+  assert.equal(insertOrder.params[1], null);
+  assert.equal(insertOrder.params[3], 0);
+
+  const ledgerInsert = db.calls.find((call) => call.sql.includes('INSERT INTO points_ledger'));
+  assert.equal(ledgerInsert, undefined);
 });
 
 test('repeat kiosk checkout with same email increments the existing rewards balance', async () => {
@@ -253,34 +380,37 @@ test('guest kiosk orders do not create rewards activity', async () => {
     ],
   });
 
-  await withServer(app, async (baseUrl) => {
-    const response = await fetch(`${baseUrl}/api/orders`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        cashier_id: 4,
-        total_amount: 4.5,
-        placed_via: 'customer_kiosk',
-        items: [
-          {
-            menu_item_id: 2,
-            quantity: 1,
-            price: 4.5,
-            customization: null,
-          },
-        ],
-      }),
-    });
+  await withFixedRandom(0, async () => {
+    await withServer(app, async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          cashier_id: 4,
+          total_amount: 4.5,
+          placed_via: 'customer_kiosk',
+          customer_name: 'Taylor',
+          items: [
+            {
+              menu_item_id: 2,
+              quantity: 1,
+              price: 4.5,
+              customization: null,
+            },
+          ],
+        }),
+      });
 
-    assert.equal(response.status, 201);
-    const body = await response.json();
-    assert.match(body.orderNumber, /^[A-Z0-9]{4}$/);
-    assert.equal(body.pointsEarned, 0);
-    assert.equal(body.rewardsBalance, 0);
-    assert.equal(body.freeBobaCount, 0);
-    assert.equal(body.pointsToNextFreeBoba, 5);
+      assert.equal(response.status, 201);
+      const body = await response.json();
+      assert.match(body.orderNumber, /^\d{4}$/);
+      assert.equal(body.pointsEarned, 0);
+      assert.equal(body.rewardsBalance, 0);
+      assert.equal(body.freeBobaCount, 0);
+      assert.equal(body.pointsToNextFreeBoba, 5);
+    });
   });
 
   const insertOrder = db.calls.find((call) => call.sql.includes('INSERT INTO orders'));

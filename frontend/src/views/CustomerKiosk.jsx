@@ -43,9 +43,9 @@ function defaultKioskCopy() {
     toppingsLabel: 'TOPPINGS (+$0.50)',
     addBtnPrefix: 'Add —',
     sugar0: 'No Sugar 0%',
-    sugar25: '25% 25%',
-    sugar50: '50% 50%',
-    sugar75: '75% 75%',
+    sugar25: '25%',
+    sugar50: '50%',
+    sugar75: '75%',
     sugar100: 'Normal 100%',
     iceNone: 'No ice',
     iceLight: 'Light ice',
@@ -233,7 +233,7 @@ export default function CustomerKiosk() {
       });
     }
     return recommended.slice(0, 4).map(bItem => menuItems.find(m => m.id === bItem.id) || bItem);
-  }, [weather, menuItems]);
+  }, [baseMenuItems, weather, menuItems]);
 
   const translateText = async (text, target) => {
     if (target === 'en') return text;
@@ -390,7 +390,7 @@ export default function CustomerKiosk() {
     if (temp >= 80) return { emoji: '\u2600\uFE0F', text: copy.weatherHot, bg: 'bg-amber-50 border-amber-200 text-amber-800' };
     if (temp <= 55) return { emoji: '\u{1F327}\uFE0F', text: copy.weatherCold, bg: 'bg-sky-50 border-sky-200 text-sky-800' };
     return { emoji: '\u{1F324}\uFE0F', text: copy.weatherNice, bg: 'bg-emerald-50 border-emerald-200 text-emerald-800' };
-  }, [weather]);
+  }, [copy.weatherCold, copy.weatherHot, copy.weatherNice, weather]);
 
   return (
     <div className="flex h-screen flex-row bg-[#faf9f7] font-sans overflow-hidden text-stone-800">
@@ -401,7 +401,7 @@ export default function CustomerKiosk() {
         <header className="mb-5 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => navigate('/')}
               className="flex items-center justify-center p-2 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 transition"
               aria-label="Back"
             >
@@ -483,7 +483,7 @@ export default function CustomerKiosk() {
               onClick={() => setSelectedCategory(cat)}
               className={`rounded-full px-5 py-2 text-sm font-semibold transition ${selectedCategory === cat ? 'bg-stone-800 text-white' : 'border border-stone-200 bg-white text-stone-600 hover:bg-stone-50'}`}
             >
-              {cat}
+              {getCatName(cat)}
             </button>
           ))}
         </div>
@@ -667,13 +667,18 @@ export default function CustomerKiosk() {
               <div>
                 <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Sweetness</h3>
                 <div className="flex flex-wrap gap-2">
-                  {['0%', '25%', '50%', '75%', '100%'].map(level => {
-                    const label = `${level === '100%' ? 'Normal' : level === '0%' ? 'No Sugar' : level} ${level}`;
+                  {[
+                    { value: '0%', label: copy.sugar0 },
+                    { value: '25%', label: copy.sugar25 },
+                    { value: '50%', label: copy.sugar50 },
+                    { value: '75%', label: copy.sugar75 },
+                    { value: 'Normal 100%', label: copy.sugar100 },
+                  ].map(({ value, label }) => {
                     return (
                       <button
-                        key={level}
-                        onClick={() => setSweetness(level)}
-                        className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${sweetness === level ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                        key={value}
+                        onClick={() => setSweetness(value)}
+                        className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${sweetness === value ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                       >
                         {label}
                       </button>
