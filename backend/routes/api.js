@@ -7,6 +7,7 @@ const { tryGetCustomerIdFromAuthHeader } = require('../lib/customerSession');
 const TAX_RATE = 0.0825;
 const BOBAS_PER_FREE_REWARD = 5;
 const ORDER_NUMBER_DIGITS = '0123456789';
+let customerRewardsSchemaReady = false;
 
 function calculateRewardPoints(items) {
     return (items || []).reduce((sum, item) => {
@@ -37,6 +38,32 @@ function generateOrderNumber(length = 4) {
         orderNumber += ORDER_NUMBER_DIGITS[randomIndex];
     }
     return orderNumber;
+}
+
+async function ensureCustomerRewardsSchema() {
+    if (customerRewardsSchemaReady) return;
+
+    await db.query('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS points_balance INT NOT NULL DEFAULT 0');
+    await db.query(`
+        CREATE TABLE IF NOT EXISTS points_ledger (
+            id SERIAL PRIMARY KEY,
+            customer_account_id INT REFERENCES customer_accounts(id) ON DELETE CASCADE,
+            activity_type VARCHAR(32),
+            points_delta INT DEFAULT 0,
+            order_id INT REFERENCES orders(id) ON DELETE SET NULL,
+            metadata JSONB DEFAULT '{}'::jsonb,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+    await db.query('ALTER TABLE points_ledger ADD COLUMN IF NOT EXISTS customer_account_id INT REFERENCES customer_accounts(id) ON DELETE CASCADE');
+    await db.query('ALTER TABLE points_ledger ADD COLUMN IF NOT EXISTS activity_type VARCHAR(32)');
+    await db.query('ALTER TABLE points_ledger ADD COLUMN IF NOT EXISTS points_delta INT DEFAULT 0');
+    await db.query('ALTER TABLE points_ledger ADD COLUMN IF NOT EXISTS order_id INT REFERENCES orders(id) ON DELETE SET NULL');
+    await db.query("ALTER TABLE points_ledger ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'::jsonb");
+    await db.query('ALTER TABLE points_ledger ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_points_ledger_customer_time ON points_ledger (customer_account_id, created_at DESC)');
+
+    customerRewardsSchemaReady = true;
 }
 
 async function requireManager(req, res) {
@@ -518,6 +545,10 @@ router.post('/orders', async (req, res) => {
     );
 
     try {
+        if (placed_via === 'customer_kiosk' && normalizedCustomerName && normalizedCustomerEmail) {
+            await ensureCustomerRewardsSchema();
+        }
+
         await db.query('BEGIN');
 
         if (placed_via === 'customer_kiosk' && normalizedCustomerName && normalizedCustomerEmail) {

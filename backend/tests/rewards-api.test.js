@@ -22,6 +22,14 @@ function loadAppWithMocks({ dbResponses, customerId = null }) {
     calls: [],
     async query(sql, params) {
       this.calls.push({ sql, params });
+      if (
+        sql.includes('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS points_balance') ||
+        sql.includes('CREATE TABLE IF NOT EXISTS points_ledger') ||
+        sql.includes('ALTER TABLE points_ledger') ||
+        sql.includes('CREATE INDEX IF NOT EXISTS idx_points_ledger_customer_time')
+      ) {
+        return { rows: [] };
+      }
       const next = dbResponses[responseIndex++];
       if (next instanceof Error) {
         throw next;
@@ -145,6 +153,9 @@ test('customer kiosk rewards use checkout email as a persistent database account
   const upsertCustomer = db.calls.find((call) => call.sql.includes('INSERT INTO customer_accounts'));
   assert.ok(upsertCustomer, 'expected customer account upsert');
   assert.deepEqual(upsertCustomer.params, ['taylor@example.com', 'Taylor']);
+
+  const schemaRepair = db.calls.find((call) => call.sql.includes('ALTER TABLE customer_accounts ADD COLUMN IF NOT EXISTS points_balance'));
+  assert.ok(schemaRepair, 'expected rewards schema guard before using customer points');
 
   const insertOrder = db.calls.find((call) => call.sql.includes('INSERT INTO orders'));
   assert.ok(insertOrder, 'expected order insert query');
