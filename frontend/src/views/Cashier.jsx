@@ -354,8 +354,8 @@ export default function Cashier() {
       {/* Customization Modal */}
       {customizingItem && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-            <div className="mb-6 flex items-start justify-between">
+          <div className="flex max-h-[94vh] w-full max-w-2xl flex-col rounded-3xl bg-white p-5 shadow-2xl">
+            <div className="mb-4 flex items-start justify-between">
               <div>
                 <h2 className="text-2xl font-black tracking-tight text-slate-900">Customize</h2>
                 <p className="font-medium text-slate-500 mt-1.5">{customizingItem.name}</p>
@@ -365,21 +365,22 @@ export default function Cashier() {
               </button>
             </div>
 
-            <div className="space-y-6">
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Sweetness</h3>
-                <div className="flex flex-wrap gap-2">
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Sweetness</h3>
+                <div className="grid grid-cols-3 gap-2">
                   {[
                     { value: '0', label: 'No Sugar 0%' },
                     { value: '25', label: '25%' },
                     { value: '50', label: '50%' },
                     { value: '75', label: '75%' },
                     { value: '100', label: 'Normal 100%' },
+                    { value: '125', label: 'Extra Sweet 125%' },
                   ].map(({ value, label }) => (
                     <button
                       key={value}
                       onClick={() => setSweetness(value)}
-                      className={`rounded-xl border px-3 py-2 text-sm font-bold transition ${sweetness === value ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
+                      className={`rounded-xl border px-2.5 py-2 text-sm font-bold transition ${sweetness === value ? 'border-[#93c5fd] bg-[#bfdbfe] text-blue-900 shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'}`}
                     >
                       {label}
                     </button>
@@ -388,7 +389,7 @@ export default function Cashier() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Size</h3>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Size</h3>
                 <div className="flex flex-wrap gap-2">
                   {SIZE_OPTIONS.map((option) => (
                     <button
@@ -404,7 +405,7 @@ export default function Cashier() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Temperature</h3>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Temperature</h3>
                 <button
                   type="button"
                   onClick={handleHotToggle}
@@ -418,7 +419,7 @@ export default function Cashier() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Ice Level</h3>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Ice Level</h3>
                 <div className="flex flex-wrap gap-2">
                   {['no ice', 'light ice', 'regular ice', 'extra ice'].map(level => (
                     <button
@@ -435,10 +436,10 @@ export default function Cashier() {
               </div>
 
               <div>
-                <h3 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
+                <h3 className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-800">Toppings (+<span className="tabular-nums">$0.50</span>)</h3>
                 <div className="grid grid-cols-2 gap-2">
                   {TOPPING_OPTIONS.map(topping => (
-                    <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border p-3 transition ${toppings.includes(topping.id) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                    <label key={topping.id} className={`flex cursor-pointer items-center justify-between gap-2 rounded-xl border px-3 py-2 transition ${toppings.includes(topping.id) ? 'border-[#93c5fd] bg-[#eff6ff] ring-1 ring-blue-300' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                       <span className="text-sm font-medium leading-tight text-slate-800">{topping.name}</span>
                       <input
                         type="checkbox"
@@ -452,10 +453,10 @@ export default function Cashier() {
               </div>
             </div>
 
-            <div className="mt-8">
+            <div className="mt-4 shrink-0">
               <button
                 onClick={confirmCustomization}
-                className="w-full rounded-2xl bg-[#93c5fd] py-4 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
+                className="w-full rounded-2xl bg-[#93c5fd] py-3 text-lg font-bold text-white shadow-sm transition hover:bg-[#60a5fa] active:scale-[0.98]"
               >
                 Add — <span className="tabular-nums">${calculateCustomizedDrinkPrice({
                   basePrice: getBasePrice(customizingItem),
