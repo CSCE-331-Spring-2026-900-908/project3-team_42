@@ -35,62 +35,62 @@
   html.reduce-motion *,
   html.reduce-motion *::before,
   html.reduce-motion *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
     scroll-behavior: auto !important;
   }
 
   html.high-contrast {
-    --color-cream: #ffffff;
-    --color-ink: #000000;
+    --color-cream: #000000;
+    --color-ink: #ffffff;
   }
 
   html.high-contrast body {
-    background-color: #fff !important;
-    color: #000 !important;
+    background-color: #000 !important;
+    color: #fff !important;
   }
 
   html.high-contrast #root * {
-    border-color: #000 !important;
+    border-color: #fff !important;
   }
 
   html.high-contrast #root img {
-    border: 2px solid #000 !important;
+    border: 2px solid #fff !important;
   }
 
   html.high-contrast #root a {
     text-decoration: underline !important;
-    color: #000 !important;
+    color: #fff !important;
   }
 
   html.high-contrast #root button {
-    border: 2px solid #000 !important;
+    border: 2px solid #fff !important;
   }
 
   html.high-contrast #root [class*="bg-gradient"],
   html.high-contrast #root [class*="from-"] {
     background-image: none !important;
-    background-color: #000 !important;
-    color: #fff !important;
+    background-color: #fff !important;
+    color: #000 !important;
   }
 
   html.high-contrast #root header,
   html.high-contrast #root footer,
   html.high-contrast #root aside,
   html.high-contrast #root nav {
-    background-color: #fff !important;
-    color: #000 !important;
-    border-color: #000 !important;
+    background-color: #000 !important;
+    color: #fff !important;
+    border-color: #fff !important;
   }
 
   html.high-contrast #root [class*="bg-gradient"] button {
-    color: #fff !important;
+    color: #000 !important;
   }
 
   html.high-contrast #root table th,
   html.high-contrast #root table td {
-    border: 1px solid #000 !important;
+    border: 1px solid #fff !important;
   }
 
   html.high-contrast #root [class*="shadow"] {
@@ -100,9 +100,9 @@
   html.high-contrast #root input,
   html.high-contrast #root select,
   html.high-contrast #root textarea {
-    border: 2px solid #000 !important;
-    background: #fff !important;
-    color: #000 !important;
+    border: 2px solid #fff !important;
+    background: #000 !important;
+    color: #fff !important;
   }
 
 }

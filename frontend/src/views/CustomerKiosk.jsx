@@ -168,7 +168,8 @@ export default function CustomerKiosk() {
   }, [cart]);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const behavior = document.documentElement.classList.contains('reduce-motion') ? 'auto' : 'smooth';
+    chatEndRef.current?.scrollIntoView({ behavior });
   }, [chatLog, isChatting]);
 
   useEffect(() => {
@@ -638,10 +639,12 @@ export default function CustomerKiosk() {
         <button
           type="button"
           onClick={() => setChatOpen(true)}
-          className="flex h-16 w-16 items-center justify-center rounded-2xl bg-white border border-slate-200 text-2xl shadow-lg transition hover:scale-105 active:scale-95"
+          className="flex h-16 w-16 items-center justify-center rounded-2xl border border-blue-200 bg-blue-600 text-white shadow-lg transition hover:scale-105 hover:bg-blue-700 active:scale-95"
           aria-label="Open menu assistant"
         >
-          {'\u2728'}
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-8 w-8" aria-hidden="true">
+            <path d="M4 5.75A2.75 2.75 0 0 1 6.75 3h10.5A2.75 2.75 0 0 1 20 5.75v7.5A2.75 2.75 0 0 1 17.25 16H9.06l-3.57 3.28A.75.75 0 0 1 4.25 18.7V16.4A2.75 2.75 0 0 1 4 16V5.75Z" />
+          </svg>
         </button>
       </div>
 
