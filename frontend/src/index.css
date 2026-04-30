@@ -52,7 +52,13 @@
   }
 
   html.high-contrast #root * {
+    color: #fff !important;
     border-color: #fff !important;
+  }
+
+  html.high-contrast #root,
+  html.high-contrast #root [class*="bg-"] {
+    background-color: #000 !important;
   }
 
   html.high-contrast #root img {
@@ -71,8 +77,8 @@
   html.high-contrast #root [class*="bg-gradient"],
   html.high-contrast #root [class*="from-"] {
     background-image: none !important;
-    background-color: #fff !important;
-    color: #000 !important;
+    background-color: #000 !important;
+    color: #fff !important;
   }
 
   html.high-contrast #root header,
@@ -85,7 +91,7 @@
   }
 
   html.high-contrast #root [class*="bg-gradient"] button {
-    color: #000 !important;
+    color: #fff !important;
   }
 
   html.high-contrast #root table th,
